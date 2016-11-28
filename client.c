@@ -5,6 +5,8 @@
  *      Author: RyanMini
  */
 
+//A simple coment to test git branching
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
