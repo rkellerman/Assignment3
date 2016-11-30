@@ -41,12 +41,23 @@ typedef struct {
 
 typedef struct sockaddr SA;
 
+/*
+
+	Calledd once per open descriptor. Assiciates the descriptor fd with a read 
+	buffer of type rio_t at address rp.
+*/
+
 void rio_readinitb(rio_t *rp, int fd)
 {
     rp->rio_fd = fd;
     rp->rio_cnt = 0;
     rp->rio_bufptr = rp->rio_buf;
 }
+
+/*
+	Reads up to n bytes from file descriptor rp and places it in the buffer
+
+*/
 
 static ssize_t rio_read(rio_t *rp, char *usrbuf, size_t n)
 {
@@ -75,6 +86,13 @@ static ssize_t rio_read(rio_t *rp, char *usrbuf, size_t n)
     return cnt;
 }
 
+/*
+	Reads the next text line from file rp, copies it to memory location usrbuf,
+	and termines the text line with the null (zero) character. The rio_readlineb
+	function reads at most maxlen -1 bytes, leaving room for the terminating null character
+
+*/
+
 ssize_t rio_readlineb(rio_t *rp, void *usrbuf, size_t maxlen)
 {
     int n, rc;
@@ -96,7 +114,16 @@ ssize_t rio_readlineb(rio_t *rp, void *usrbuf, size_t maxlen)
     *bufp = 0;
     return n;
 }
+/*
 
+	INPUT:
+		hostname: The server to which a connection is established
+
+	OUTPUT: Open socket descriptor that is ready for input and output using
+	Unix I/O functions
+	Establishes a connection with a server running on host "hostname" and 
+	listens for connection requests on the well-known port "port"
+*/
 int open_clientfd(char *hostname, int port){
 	int clientfd;
 	struct hostent *hp;
@@ -119,6 +146,11 @@ int open_clientfd(char *hostname, int port){
 	}
 	return clientfd;
 }
+
+/*
+
+	Transfer n bytes from location usrbuf to descripter fd
+*/
 
 ssize_t rio_writen(int fd, void *usrbuf, size_t n)
 {

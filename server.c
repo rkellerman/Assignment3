@@ -155,12 +155,25 @@ int open_listenfd(int port){
 
 }
 
+/*
+
+	Calledd once per open descriptor. Assiciates the descriptor fd with a read 
+	buffer of type rio_t at address rp.
+*/
+
 void rio_readinitb(rio_t *rp, int fd)
 {
     rp->rio_fd = fd;
     rp->rio_cnt = 0;
     rp->rio_bufptr = rp->rio_buf;
 }
+
+
+
+/*
+	Reads up to n bytes from file descriptor rp and places it in the buffer
+
+*/
 
 static ssize_t rio_read(rio_t *rp, char *usrbuf, size_t n)
 {
@@ -189,6 +202,13 @@ static ssize_t rio_read(rio_t *rp, char *usrbuf, size_t n)
     return cnt;
 }
 
+/*
+	Reads the next text line from file rp, copies it to memory location usrbuf,
+	and termines the text line with the null (zero) character. The rio_readlineb
+	function reads at most maxlen -1 bytes, leaving room for the terminating null character
+
+*/
+
 ssize_t rio_readlineb(rio_t *rp, void *usrbuf, size_t maxlen)
 {
     int n, rc;
@@ -210,6 +230,11 @@ ssize_t rio_readlineb(rio_t *rp, void *usrbuf, size_t maxlen)
     *bufp = 0;
     return n;
 }
+
+/*
+
+	Transfer n bytes from location usrbuf to descripter fd
+*/
 
 ssize_t rio_writen(int fd, void *usrbuf, size_t n)
 {
@@ -261,7 +286,8 @@ void worker(void * vargp){
 int main(int argc, char ** argv){
 
 	int i, listenfd, connfd, port;
-	socklen_t clientlen = sizeof(struct sockaddr_in);
+	//Finds the size of the "in" socet address
+	socklen_t clientlen = sizeof(struct sockaddr_in);  
 	struct sockaddr_in clientaddr;
 	pthread_t tid;
 
