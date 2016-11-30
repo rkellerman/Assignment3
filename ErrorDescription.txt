@@ -1,0 +1,36 @@
+Error Description
+
+-------------------------------------------------------------
+PART 1 (man errno)
+
+EACCES: Permission denied
+
+EINTR: Interrupted function call. See signal(7)
+
+EISDR: Is a directory
+
+ENFILE: To many open files in system
+
+ENOENT: No such file or directory
+
+EPERM: Operation not permitted
+
+EROFS: Read-only filesystem
+
+EWOULDBLOCK: OPeration would block
+
+EBADF: Bad file descriptor
+
+ECONNRESET: Connection resetq
+
+ETIMEDOUT: Connection timed out
+
+HOST_NOT_FOUND (man gethostbyname): The specified host is unknown
+
+INVALID_FILE_MODE: Define ourselves
+
+------------------------------------------------------------------
+
+
+
+
