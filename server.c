@@ -56,6 +56,10 @@ typedef struct {
 
 typedef struct sockaddr SA;
 
+/*
+	Semaphore functions
+*/
+
 void P(sem_t *sem)
 {
     if (sem_wait(sem) < 0){
@@ -71,6 +75,10 @@ void V(sem_t *sem)
     	exit(0);
     }
 }
+
+/*
+	Create an empty, bounded, shared FIFO buffer with n slots
+*/
 
 void sbuf_init(sbuf_t * sp, int n){
 	sp->buf = malloc(n*sizeof(int));
@@ -95,6 +103,10 @@ void sbuf_init(sbuf_t * sp, int n){
 
 }
 
+/*
+	Insert intem onto the rear of shared buffer sp
+*/
+
 void sbuf_insert(sbuf_t * sp, int item){
 
 	sem_wait(&sp->slots);						// wait until available slot
@@ -107,7 +119,9 @@ void sbuf_insert(sbuf_t * sp, int item){
 	sem_post(&sp->items); 						// announce that an item is available
 
 }
-
+/*
+	Remove and return the first item from buffer sp
+*/
 int sbuf_remove(sbuf_t * sp){
 
 	int item;
@@ -122,6 +136,11 @@ int sbuf_remove(sbuf_t * sp){
 
 	return item;
 }
+
+/*
+	Opens and returns a litening descriptor that is ready to receive connection requests
+	on a well-known port port
+*/
 
 int open_listenfd(int port){
 	int listenfd, optval = 1;
@@ -260,7 +279,7 @@ ssize_t rio_writen(int fd, void *usrbuf, size_t n)
 sbuf_t sbuf; 									// shared buffer of connected descriptors
 rio_t rio;
 
-void worker(void * vargp){
+void * worker(void * vargp){
 
 	pthread_detach(pthread_self());
 	size_t n;
