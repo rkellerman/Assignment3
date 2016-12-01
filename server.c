@@ -56,6 +56,10 @@ typedef struct {
 
 typedef struct sockaddr SA;
 
+/*
+	Semaphore functions
+*/
+
 void P(sem_t *sem)
 {
     if (sem_wait(sem) < 0){
@@ -71,6 +75,10 @@ void V(sem_t *sem)
     	exit(0);
     }
 }
+
+/*
+	Create an empty, bounded, shared FIFO buffer with n slots
+*/
 
 void sbuf_init(sbuf_t * sp, int n){
 	sp->buf = malloc(n*sizeof(int));
@@ -95,6 +103,10 @@ void sbuf_init(sbuf_t * sp, int n){
 
 }
 
+/*
+	Insert intem onto the rear of shared buffer sp
+*/
+
 void sbuf_insert(sbuf_t * sp, int item){
 
 	sem_wait(&sp->slots);						// wait until available slot
@@ -107,7 +119,9 @@ void sbuf_insert(sbuf_t * sp, int item){
 	sem_post(&sp->items); 						// announce that an item is available
 
 }
-
+/*
+	Remove and return the first item from buffer sp
+*/
 int sbuf_remove(sbuf_t * sp){
 
 	int item;
@@ -122,6 +136,11 @@ int sbuf_remove(sbuf_t * sp){
 
 	return item;
 }
+
+/*
+	Opens and returns a litening descriptor that is ready to receive connection requests
+	on a well-known port port
+*/
 
 int open_listenfd(int port){
 	int listenfd, optval = 1;
@@ -155,12 +174,25 @@ int open_listenfd(int port){
 
 }
 
+/*
+
+	Calledd once per open descriptor. Assiciates the descriptor fd with a read 
+	buffer of type rio_t at address rp.
+*/
+
 void rio_readinitb(rio_t *rp, int fd)
 {
     rp->rio_fd = fd;
     rp->rio_cnt = 0;
     rp->rio_bufptr = rp->rio_buf;
 }
+
+
+
+/*
+	Reads up to n bytes from file descriptor rp and places it in the buffer
+
+*/
 
 static ssize_t rio_read(rio_t *rp, char *usrbuf, size_t n)
 {
@@ -189,6 +221,13 @@ static ssize_t rio_read(rio_t *rp, char *usrbuf, size_t n)
     return cnt;
 }
 
+/*
+	Reads the next text line from file rp, copies it to memory location usrbuf,
+	and termines the text line with the null (zero) character. The rio_readlineb
+	function reads at most maxlen -1 bytes, leaving room for the terminating null character
+
+*/
+
 ssize_t rio_readlineb(rio_t *rp, void *usrbuf, size_t maxlen)
 {
     int n, rc;
@@ -210,6 +249,11 @@ ssize_t rio_readlineb(rio_t *rp, void *usrbuf, size_t maxlen)
     *bufp = 0;
     return n;
 }
+
+/*
+
+	Transfer n bytes from location usrbuf to descripter fd
+*/
 
 ssize_t rio_writen(int fd, void *usrbuf, size_t n)
 {
@@ -235,7 +279,7 @@ ssize_t rio_writen(int fd, void *usrbuf, size_t n)
 sbuf_t sbuf; 									// shared buffer of connected descriptors
 rio_t rio;
 
-void worker(void * vargp){
+void * worker(void * vargp){
 
 	pthread_detach(pthread_self());
 	size_t n;
@@ -261,7 +305,8 @@ void worker(void * vargp){
 int main(int argc, char ** argv){
 
 	int i, listenfd, connfd, port;
-	socklen_t clientlen = sizeof(struct sockaddr_in);
+	//Finds the size of the "in" socet address
+	socklen_t clientlen = sizeof(struct sockaddr_in);  
 	struct sockaddr_in clientaddr;
 	pthread_t tid;
 
