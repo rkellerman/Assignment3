@@ -27,6 +27,7 @@
 #include <netdb.h>
 #include <netinet/in.h>
 #include <arpa/inet.h>
+#include "header.h"
 
 #define NTHREADS 4
 #define SBUFSIZE 16
@@ -47,12 +48,7 @@ typedef struct {
 int itemsVal = 0;
 int slotsVal;
 
-typedef struct {
-	int rio_fd;                /* Descriptor for this internal buf */
-	int rio_cnt;               /* Unread bytes in internal buf */
-	char *rio_bufptr;          /* Next unread byte in internal buf */
-	char rio_buf[RIO_BUFSIZE]; /* Internal buffer */
-} rio_t;
+
 
 typedef struct sockaddr SA;
 
