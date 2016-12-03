@@ -173,11 +173,219 @@ ssize_t rio_writen(int fd, void *usrbuf, size_t n)
 
 /*******************************************************************************************************************/
 
+int port, clientfd, filedesc;
+char * host;
+rio_t rio;
+char file[10000];
+
+int netopen(char * pathname, int flags){
+
+	char buf[MAXLINE];
+
+
+	clientfd = open_clientfd(host, port);
+	rio_readinitb(&rio, clientfd);
+
+
+	// write file path and flags to server program
+	// first write OPEN to buf and pass it
+
+	sprintf(buf, "OPEN\n");
+
+	rio_writen(clientfd, buf, strlen(buf));
+	rio_readlineb(&rio, buf, MAXLINE);
+
+	if (!strcmp(buf, "PROCEED\n")){
+		//printf("I CAN PROCEED\n");
+	}
+	else {
+		// report failure
+	}
+
+	// pathname does not need to be modified, write it to server
+
+	int len = strlen(pathname);
+	pathname[len] = '\n';
+	rio_writen(clientfd, pathname, strlen(pathname));
+	rio_readlineb(&rio, buf, MAXLINE);
+	if (!strcmp(buf, "PROCEED\n")){
+		//printf("I CAN PROCEED\n");
+	}
+	else {
+		// report failure
+	}
+
+	// convert flags to string that is held by buf and write them to server
+
+	sprintf(buf, "%d\n", flags);
+	rio_writen(clientfd, buf, strlen(buf));
+	rio_readlineb(&rio, buf, MAXLINE);
+	if (!strcmp(buf, "PROCEED\n")){
+		//printf("I CAN PROCEED\n");
+	}
+	else {
+		// report failure
+	}
+
+	// receive response from program
+	rio_readlineb(&rio, buf, MAXLINE);		// receive response in buf, modify to be a string for atoi
+	buf[strlen(buf)-1] = '\0';
+	printf("Client received: %s\n", buf);
+
+
+	// buf holds desired file descriptor
+
+	close(clientfd);
+
+	return atoi(buf);
+}
+
+int netread(int fildes, char * buf, size_t nbyte){
+
+
+	char sub[MAXLINE];
+
+
+	clientfd = open_clientfd(host, port);
+	rio_readinitb(&rio, clientfd);
+
+	sprintf(sub, "READ\n");
+
+	rio_writen(clientfd, sub, strlen(sub));
+	rio_readlineb(&rio, sub, MAXLINE);
+
+	if (!strcmp(sub, "PROCEED\n")){
+		//printf("I CAN PROCEED\n");
+	}
+	else {
+		// report failure
+	}
+
+	sprintf(sub, "%d\n", fildes);
+	rio_writen(clientfd, sub, strlen(sub));
+	rio_readlineb(&rio, sub, MAXLINE);
+
+	if (!strcmp(sub, "PROCEED\n")){
+		//printf("I CAN PROCEED\n");
+	}
+	else {
+		// report failure
+	}
+
+	char * charbyte = malloc(10);
+	rio_readlineb(&rio, charbyte, MAXLINE);
+	charbyte[strlen(charbyte)-1] = '\0';
+
+	int numbytes = atoi(charbyte);
+
+	//char * file = malloc(numbytes + 1);
+	rio_readlineb(&rio, buf, MAXLINE);
+	buf[strlen(buf) - 1] = '\0';
+
+	close(clientfd);
+
+	return numbytes;
+}
+
+int netwrite(int fildes, char * file, size_t size){
+
+	char sub[MAXLINE];
+
+
+	clientfd = open_clientfd(host, port);
+	rio_readinitb(&rio, clientfd);
+
+	sprintf(sub, "WRITE\n");
+
+	rio_writen(clientfd, sub, strlen(sub));
+	rio_readlineb(&rio, sub, MAXLINE);
+
+	if (!strcmp(sub, "PROCEED\n")){
+		//printf("I CAN PROCEED\n");
+	}
+	else {
+		// report failure
+	}
+
+	// write the file decriptor to the server
+	sprintf(sub, "%d\n", fildes);
+	rio_writen(clientfd, sub, strlen(sub));
+	rio_readlineb(&rio, sub, MAXLINE);
+
+	if (!strcmp(sub, "PROCEED\n")){
+		//printf("I CAN PROCEED\n");
+	}
+	else {
+		// report failure
+	}
+
+
+	// write text to server
+	sprintf(file, "%s\n", file);
+	printf("File to be written:  %s", file);
+	rio_writen(clientfd, file, strlen(file));
+	rio_readlineb(&rio, sub, MAXLINE);
+
+	if (!strcmp(sub, "PROCEED\n")){
+		//printf("I CAN PROCEED\n");
+	}
+	else {
+		// report failure
+	}
+
+	rio_readlineb(&rio, sub, MAXLINE);
+	sub[strlen(sub) - 1] = '\0';
+
+	close(clientfd);
+
+	return atoi(sub);
+
+}
+
+int netclose(int fildes){
+
+	char sub[MAXLINE];
+
+
+	clientfd = open_clientfd(host, port);
+	rio_readinitb(&rio, clientfd);
+
+	sprintf(sub, "CLOSE\n");
+
+	rio_writen(clientfd, sub, strlen(sub));
+	rio_readlineb(&rio, sub, MAXLINE);
+
+	if (!strcmp(sub, "PROCEED\n")){
+		//printf("I CAN PROCEED\n");
+	}
+	else {
+		// report failure
+	}
+
+	sprintf(sub, "%d\n", fildes);
+	rio_writen(clientfd, sub, strlen(sub));
+	rio_readlineb(&rio, sub, MAXLINE);
+
+	if (!strcmp(sub, "PROCEED\n")){
+		//printf("I CAN PROCEED\n");
+	}
+	else {
+		// report failure
+	}
+
+	char * charbyte = malloc(10);
+	rio_readlineb(&rio, charbyte, MAXLINE);
+	charbyte[strlen(charbyte)-1] = '\0';
+
+	close(clientfd);
+
+	return atoi(charbyte);
+
+}
+
 int main(int argc, char ** argv){
 
-	int clientfd, port;
-	char * host, buf[MAXLINE];
-	rio_t rio;
+	char buf[MAXLINE];
 
 	if (argc != 3){
 		fprintf(stderr, "usage:  %s <host> <port>\n", argv[0]);
@@ -187,38 +395,56 @@ int main(int argc, char ** argv){
 	host = argv[1];
 	port = atoi(argv[2]);
 
-	clientfd = open_clientfd(host, port);
-
-	printf("Connected to %s on port %d\n\n", host, port);
-
-
 	char input[MAXLINE];
 	char filepath[MAXLINE];
 
-	rio_readinitb(&rio, clientfd);
+
 
 	while (1){
 
 		printf("Enter:  {OPEN}, {READ}, {WRITE}, {ECHO}, or {CLOSE}\n");
 		scanf("%s", input);
 
-	/*
-		printf("Enter filepath:  ");
-		scanf("%s", filepath);
-		printf("\nOperation chosen:  %s\nFilepath given:  %s\n", input, filepath);
-	*/
 
 		if (!strcmp(input, "OPEN")){
-			printf("Open not supported at this time...\n");
-			// netopen();
+			printf("Enter filepath:  ");
+			scanf("%s", filepath);
+			filedesc = netopen(filepath, O_RDWR);
 		}
 		else if (!strcmp(input, "READ")){
-			printf("Read not supported at this time...\n");
-			// netread();
+			printf("Enter file descriptor:  ");
+			char * charfile = malloc(3);
+			scanf("%s", charfile);
+			int filedesc = atoi(charfile);
+			int numbytes = netread(filedesc, file, sizeof(file));
+
+			printf("%d bytes read...  The following are the contents of the file....\n%s\n", numbytes, file);
 		}
 		else if (!strcmp(input, "WRITE")){
-			printf("Write not supported at this time...\n");
-			// netwrite();
+			printf("Enter file descriptor:  ");
+			char * charfile = malloc(3);
+			scanf("%s", charfile);
+			int filedesc = atoi(charfile);
+			printf("Enter text to be written:  ");
+
+
+
+			char *text = calloc(1,1);
+			int i = 0;
+			while( fgets(file, 10000, stdin) ) /* break with ^D or ^Z */
+			{
+				text = realloc( text, strlen(text)+1+strlen(file) );
+				if( !text ){} /* error handling */
+				strcat( text, file ); /* note a '\n' is appended here everytime */
+				printf("%s\n", file);
+				i++;
+				if (i == 2){
+					break;
+				}
+			}
+			printf("\ntext:\n%s",text);
+			int success = netwrite(filedesc, file, strlen(file));
+			printf("Number of bytes written is %d\n", success);
 		}
 		else if (!strcmp(input, "ECHO")){
 			while (fgets(buf, MAXLINE, stdin) != NULL){
@@ -231,10 +457,12 @@ int main(int argc, char ** argv){
 			}
 		}
 		else if (!strcmp(input, "CLOSE")){
-			// must tell server to release file descriptor, using netclose()
-			// netclose();
-			close(clientfd);
-			break;
+			printf("Enter file descriptor:  ");
+			char * charfile = malloc(3);
+			scanf("%s", charfile);
+			int filedesc = atoi(charfile);
+			int success = netclose(filedesc);
+			printf("Success:  %d\n", success);
 		}
 		else {
 			printf("Command not supported...\n");
@@ -245,13 +473,13 @@ int main(int argc, char ** argv){
 
 	printf("\nTerminating");
 	fflush(stdout);
-    int i;
-    for (i = 0; i < 3; i++){
-    	printf(".");
-    	fflush(stdout);
-    	sleep(1);
-    }
-    printf(" Done\n");
+	int i;
+	for (i = 0; i < 3; i++){
+		printf(".");
+		fflush(stdout);
+		sleep(1);
+	}
+	printf(" Done\n");
 
 
 	exit(0);
