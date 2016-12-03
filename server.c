@@ -279,12 +279,137 @@ ssize_t rio_writen(int fd, void *usrbuf, size_t n)
 sbuf_t sbuf; 									// shared buffer of connected descriptors
 rio_t rio;
 
-void * worker(void * vargp){
+void work_open(int connfd){ 			// be sure to use semaphores
+	printf("OPEN FUNCTION RUNNING...\n");
+	
+	char buf[MAXLINE];
+	
+	rio_readlineb(&rio, buf, MAXLINE);
+   char * pathname = malloc(strlen(buf));
+   strcpy(pathname, buf);
+   pathname[strlen(buf)-1] = '\0';
+   
+	
+	sprintf(buf, "PROCEED\n");
+   rio_writen(connfd, buf, strlen(buf));
+   
+   char * flags = malloc(2);
+   rio_readlineb(&rio, flags, MAXLINE);
+   flags[1] = '\0';
+
+   
+   sprintf(buf, "PROCEED\n");
+   rio_writen(connfd, buf, strlen(buf));
+   
+   printf("Pathname is \"%s\"\n", pathname);
+   
+   int flag = atoi(flags);
+   int filedesc = open(pathname, flag);
+   
+   printf("Flag is %d, length of pathname is %d\n", flag, strlen(pathname));
+   printf("File descriptor created: %d\n", filedesc);
+   
+   char * charfile = malloc(3);
+   sprintf(charfile, "%d\n", filedesc);
+   rio_writen(connfd, charfile, strlen(charfile));
+   
+   printf("ending function\n");
+
+	return;
+}
+
+void work_read(int connfd){
+
+   char buf[MAXLINE];
+   rio_readlineb(&rio, buf, MAXLINE);
+   char * charfile = malloc(strlen(buf));
+   strcpy(charfile, buf);
+   charfile[strlen(buf)-1] = '\0';
+   
+   sprintf(buf, "PROCEED\n");
+	rio_writen(connfd, buf, strlen(buf));
+   
+   int filedesc = atoi(charfile);
+   printf("File descriptor received is %d\n", filedesc);
+   
+   char file[10000];
+
+   int numbytes = read(filedesc, file, 10000);
+   
+   printf("%d bytes read:  %s\n", numbytes, file);
+   
+   char * charbyte = malloc(10);
+   sprintf(charbyte, "%d\n", numbytes);
+   
+   rio_writen(connfd, charbyte, strlen(charbyte));
+   
+   sprintf(file, "%s\n", file);
+   rio_writen(connfd, file, strlen(file));
+
+}
+
+void work_write(int connfd){
+
+   // recieve and process file descriptor
+   char buf[MAXLINE];
+   rio_readlineb(&rio, buf, MAXLINE);
+   char * charfile = malloc(strlen(buf));
+   strcpy(charfile, buf);
+   charfile[strlen(buf)-1] = '\0';
+   
+   sprintf(buf, "PROCEED\n");
+	rio_writen(connfd, buf, strlen(buf));
+   
+   int filedesc = atoi(charfile);
+   printf("File descriptor received is %d\n", filedesc);
+
+   //receive text to be written
+   char file[10000];
+   rio_readlineb(&rio,file, 10000);
+   file[strlen(file)-1] = '\0';
+   printf("The text you have written is %s\n", file);
+   
+   sprintf(buf, "PROCEED\n");
+	rio_writen(connfd, buf, strlen(buf));
+
+   int success = write(filedesc, file, strlen(file));
+   
+   printf("Success:  %d\n", success);
+   sprintf(buf, "%d/n", success);
+   rio_writen(connfd, buf, strlen(buf));
+
+}
+
+void work_close(int connfd){
+
+   char buf[MAXLINE];
+   rio_readlineb(&rio, buf, MAXLINE);
+   char * charfile = malloc(strlen(buf));
+   strcpy(charfile, buf);
+   charfile[strlen(buf)-1] = '\0';
+   
+   sprintf(buf, "PROCEED\n");
+	rio_writen(connfd, buf, strlen(buf));
+   
+   int filedesc = atoi(charfile);
+   printf("File descriptor received is %d\n", filedesc);
+   
+   int success = close(filedesc);
+   
+   char * charbyte = malloc(10);
+   sprintf(charbyte, "%d\n", success);
+   
+   rio_writen(connfd, charbyte, strlen(charbyte));
+
+}
+
+void worker(void * vargp){
 
 	pthread_detach(pthread_self());
 	size_t n;
 	while (1){
 		int connfd = sbuf_remove(&sbuf);
+		
 
 		printf("Worker thread has accepted client connection...\n");
 
@@ -293,11 +418,37 @@ void * worker(void * vargp){
 		rio_readinitb(&rio, connfd);
 
 		while ((n = rio_readlineb(&rio, buf, MAXLINE)) != 0){
-		        int s = strlen(buf);
-		        // buf[s-1] = '\0';
-			printf("Server received: %s", buf);
-			rio_writen(connfd, buf, n);
+		  		// read command, then call appropriate function
+          
+			if (!strcmp(buf, "OPEN\n")){
+			  sprintf(buf, "PROCEED\n");
+			  rio_writen(connfd, buf, strlen(buf));
+			  work_open(connfd);
+			  break;
+			}
+			else if (!strcmp(buf, "WRITE\n")){
+           sprintf(buf, "PROCEED\n");
+			  rio_writen(connfd, buf, strlen(buf));
+			  work_write(connfd);
+			  break;
+			}
+			else if (!strcmp(buf, "READ\n")){
+           sprintf(buf, "PROCEED\n");
+			  rio_writen(connfd, buf, strlen(buf));
+			  work_read(connfd);
+			  break;
+			}
+			else if (!strcmp(buf, "CLOSE\n")){
+           sprintf(buf, "PROCEED\n");
+			  rio_writen(connfd, buf, strlen(buf));
+			  work_close(connfd);
+			  break;
+			}
+			else {  // report some sort of error
+
+			}
 		}
+		printf("Closing\n");
 		close(connfd);
 	}
 }
@@ -305,8 +456,7 @@ void * worker(void * vargp){
 int main(int argc, char ** argv){
 
 	int i, listenfd, connfd, port;
-	//Finds the size of the "in" socet address
-	socklen_t clientlen = sizeof(struct sockaddr_in);  
+	socklen_t clientlen = sizeof(struct sockaddr_in);
 	struct sockaddr_in clientaddr;
 	pthread_t tid;
 
@@ -336,5 +486,4 @@ int main(int argc, char ** argv){
 	printf("\nServer terminating...\n");
 	return 0;
 }
-
 
