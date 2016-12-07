@@ -27,16 +27,11 @@
 #include <netdb.h>
 #include <netinet/in.h>
 #include <arpa/inet.h>
+#include "header.h"
 
 #define MAXLINE     8192
 #define RIO_BUFSIZE 8192
 
-typedef struct {
-	int rio_fd;                /* Descriptor for this internal buf */
-	int rio_cnt;               /* Unread bytes in internal buf */
-	char *rio_bufptr;          /* Next unread byte in internal buf */
-	char rio_buf[RIO_BUFSIZE]; /* Internal buffer */
-} rio_t;
 
 typedef struct sockaddr SA;
 
@@ -201,7 +196,7 @@ int netserverinit(char * hostname, int filemode){
 		errno = HOST_NOT_FOUND;
 		return -1;
 	}
-
+	error = INVALID_FILE_MODE;
 	return 0;
 }
 

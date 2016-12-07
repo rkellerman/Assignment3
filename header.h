@@ -1,6 +1,7 @@
 #ifndef HEADER_GAURD
 #define HEADER_GAURD
 #define RIO_BUFSIZE 8192
+#define INVALID_FILE_MODE 365
 
 typedef struct {
 	int rio_fd;                /* Descriptor for this internal buf */
