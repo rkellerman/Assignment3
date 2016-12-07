@@ -4,7 +4,6 @@
  *  Created on: Not 23, 2016
  *      Author: RyanMini
  */
-
 //A simple coment to test git branching
 
 #include <stdio.h>
@@ -43,7 +42,7 @@ typedef struct sockaddr SA;
 
 /*
 
-	Calledd once per open descriptor. Assiciates the descriptor fd with a read 
+	Called once per open descriptor. Assiciates the descriptor fd with a read 
 	buffer of type rio_t at address rp.
 */
 
@@ -173,18 +172,59 @@ ssize_t rio_writen(int fd, void *usrbuf, size_t n)
 
 /*******************************************************************************************************************/
 
-int port, clientfd, filedesc;
+int clientfd, filedesc;
 char * host;
 rio_t rio;
 char file[10000];
+int port = 9000;
+
+
+
+
+/*
+	Intializes the connection between the client and server
+*/
+
+int netserverinit(char * hostname, int filemode){
+	int port = 9000;
+	int count = 0, error;
+	struct sockaddr_in serveraddr;
+	struct addrinfo * point, * res;
+
+	
+	error = getaddrinfo(hostname,NULL, NULL, &res);
+	for (point = res; point != NULL; point = point->ai_next){
+		count = count + 1;
+	}
+	if (count < 1){
+		printf("There is not host to which you can connect\n");
+		errno = HOST_NOT_FOUND;
+		return -1;
+	}
+
+	return 0;
+}
+
+
+
+
+
+
+
+
+
+/*
+	This function takes an input path name and a set of flags. It returns as new
+	file descriptor or -1 if an error occurs
+*/
 
 int netopen(char * pathname, int flags){
 
 	char buf[MAXLINE];
 
 
-	clientfd = open_clientfd(host, port);
-	rio_readinitb(&rio, clientfd);
+	clientfd = open_clientfd(host, port);  //opens a connection on host and port
+	rio_readinitb(&rio, clientfd);	//associates client fd to read buffer
 
 
 	// write file path and flags to server program
@@ -192,7 +232,7 @@ int netopen(char * pathname, int flags){
 
 	sprintf(buf, "OPEN\n");
 
-	rio_writen(clientfd, buf, strlen(buf));
+	rio_writen(clientfd, buf, strlen(buf)); //writes buffer content to clientfd
 	rio_readlineb(&rio, buf, MAXLINE);
 
 	if (!strcmp(buf, "PROCEED\n")){
@@ -206,8 +246,8 @@ int netopen(char * pathname, int flags){
 
 	int len = strlen(pathname);
 	pathname[len] = '\n';
-	rio_writen(clientfd, pathname, strlen(pathname));
-	rio_readlineb(&rio, buf, MAXLINE);
+	rio_writen(clientfd, pathname, strlen(pathname)); //write pathname
+	rio_readlineb(&rio, buf, MAXLINE);	//
 	if (!strcmp(buf, "PROCEED\n")){
 		//printf("I CAN PROCEED\n");
 	}
@@ -240,13 +280,18 @@ int netopen(char * pathname, int flags){
 	return atoi(buf);
 }
 
+/*
+	This function takes a file destination and attempts to read bytes. The function
+	returns the number of bytes read or -1 on error
+*/
+
 int netread(int fildes, char * buf, size_t nbyte){
 
 
 	char sub[MAXLINE];
 
 
-	clientfd = open_clientfd(host, port);
+	clientfd = open_clientfd(host, port); //Open server connection on host and port
 	rio_readinitb(&rio, clientfd);
 
 	sprintf(sub, "READ\n");
@@ -262,7 +307,7 @@ int netread(int fildes, char * buf, size_t nbyte){
 	}
 
 	sprintf(sub, "%d\n", fildes);
-	rio_writen(clientfd, sub, strlen(sub));
+	rio_writen(clientfd, sub, strlen(sub)); //write file destination to serveraddr
 	rio_readlineb(&rio, sub, MAXLINE);
 
 	if (!strcmp(sub, "PROCEED\n")){
@@ -286,6 +331,12 @@ int netread(int fildes, char * buf, size_t nbyte){
 
 	return numbytes;
 }
+
+/*
+	This functions writes the number of bytes to fildes specified by the size.
+	The function should return the number of bytes actually written and the number should
+	never be greater than nbyte
+*/
 
 int netwrite(int fildes, char * file, size_t size){
 
@@ -341,6 +392,10 @@ int netwrite(int fildes, char * file, size_t size){
 	return atoi(sub);
 
 }
+
+/*
+	Closes the connection to the server
+*/
 
 int netclose(int fildes){
 
@@ -401,14 +456,14 @@ int main(int argc, char ** argv){
 
 
 	while (1){
-
+		//Prompt for user. Get input using scanf()
 		printf("Enter:  {OPEN}, {READ}, {WRITE}, {ECHO}, or {CLOSE}\n");
 		scanf("%s", input);
 
 
 		if (!strcmp(input, "OPEN")){
 			printf("Enter filepath:  ");
-			scanf("%s", filepath);
+			scanf("%s" 	, filepath);
 			filedesc = netopen(filepath, O_RDWR);
 		}
 		else if (!strcmp(input, "READ")){
