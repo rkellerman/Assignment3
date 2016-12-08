@@ -17,7 +17,7 @@
 #include <sys/types.h>
 #include <sys/wait.h>
 #include <sys/stat.h>
-#include <fcntl.h>
+#include <sys/fcntl.h>
 #include <sys/mman.h>
 #include <errno.h>
 #include <math.h>
@@ -167,11 +167,12 @@ ssize_t rio_writen(int fd, void *usrbuf, size_t n)
 
 /*******************************************************************************************************************/
 
-int clientfd, filedesc;
+int clientfd, filedesc, accessType;
 char * host;
 rio_t rio;
 char file[10000];
 int port = 9000;
+
 
 
 
@@ -181,22 +182,30 @@ int port = 9000;
 */
 
 int netserverinit(char * hostname, int filemode){
-	int port = 9000;
-	int count = 0, error;
-	struct sockaddr_in serveraddr;
-	struct addrinfo * point, * res;
-
 	
-	error = getaddrinfo(hostname,NULL, NULL, &res);
+	int count = 0, error;
+	struct addrinfo * point, *res, hints;
+
+	hints.ai_family = AF_INET; 
+	hints.ai_socktype = SOCK_STREAM;
+	hints.ai_flags = AI_PASSIVE;
+
+	error = getaddrinfo(hostname,NULL, &hints, &res);		//Get the server information
+	//Checks linked list; there must be atleast one element. Error if zero
+	/*
 	for (point = res; point != NULL; point = point->ai_next){
 		count = count + 1;
 	}
-	if (count < 1){
+	*/
+	//Error if zero elements in linked list
+	if (error != 0){
+		fprintf(stderr, "getaddrinfo: %s\n", gai_strerror(error));
 		printf("There is not host to which you can connect\n");
 		errno = HOST_NOT_FOUND;
 		return -1;
 	}
-	error = INVALID_FILE_MODE;
+	//Set the accessType for netopen later
+	accessType = filemode;	
 	return 0;
 }
 
@@ -447,8 +456,8 @@ int main(int argc, char ** argv){
 
 	char input[MAXLINE];
 	char filepath[MAXLINE];
-
-
+	printf("Peforming netserverinit\n");
+	netserverinit("adapter.cs.rutgers.edu",O_RDONLY);
 
 	while (1){
 		//Prompt for user. Get input using scanf()

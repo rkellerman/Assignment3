@@ -62,13 +62,13 @@ typedef struct {
 
 typedef struct sockaddr SA;
 
-typedef struct{
+typedef struct Metadata{
 	char * filename;
 	int mode;
 	int read;
 	int write;
 	struct metadata * next;
-} metadata;
+}  Metadata;
 
 
 /*
@@ -293,7 +293,8 @@ ssize_t rio_writen(int fd, void *usrbuf, size_t n)
 
 sbuf_t sbuf; 									// shared buffer of connected descriptors
 rio_t rio;
-metadata * head;
+struct Metadata * head;
+
 
 
 void work_open(int connfd){ 			// be sure to use semaphores
