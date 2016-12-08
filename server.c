@@ -62,12 +62,12 @@ typedef struct {
 
 typedef struct sockaddr SA;
 
-typedef struct Metadata{
+typedef struct{
 	char * filename;
 	int mode;
 	int read;
 	int write;
-	struct metadata * next;
+	struct Metadata * next;
 }  Metadata;
 
 
@@ -293,11 +293,30 @@ ssize_t rio_writen(int fd, void *usrbuf, size_t n)
 
 sbuf_t sbuf; 									// shared buffer of connected descriptors
 rio_t rio;
-struct Metadata * head;
+Metadata * head;
+
+
+ Metadata * searchList(char * filename){
+	Metadata *pointer;
+	pointer = (Metadata *) malloc(sizeof(Metadata));
+
+	for (pointer = head; pointer != NULL; pointer = (Metadata*) pointer->next){
+		if (strcmp(pointer->filename, filename) != 0){
+			return pointer;
+		}
+
+	}
+
+	return pointer;
+
+}
+
+
 
 
 
 void work_open(int connfd){ 			// be sure to use semaphores
+	Metadata * data;
 	printf("OPEN FUNCTION RUNNING...\n");
 	
 	char buf[MAXLINE];
@@ -307,14 +326,19 @@ void work_open(int connfd){ 			// be sure to use semaphores
    strcpy(pathname, buf);
    pathname[strlen(buf)-1] = '\0';
    
+   //Here is where we search the linked list
+	data = searchList(pathname);	//Gets the struct that holds the right metadata
 	
+
+
 	sprintf(buf, "PROCEED\n");
    rio_writen(connfd, buf, strlen(buf));
    
+   //Finds which flags are preesent
    char * flags = malloc(2);
    rio_readlineb(&rio, flags, MAXLINE);
    flags[1] = '\0';
-
+   //At this point, flags have been obtained
    
    sprintf(buf, "PROCEED\n");
    rio_writen(connfd, buf, strlen(buf));
@@ -324,6 +348,14 @@ void work_open(int connfd){ 			// be sure to use semaphores
    int flag = atoi(flags);
    int filedesc = open(pathname, flag);
    
+   //Create a new node in the linked list
+	if (data == NULL){
+		Metadata * newNode = (Metadata*)malloc(sizeof(Metadata));
+		newNode->filename = pathname;
+		newNode->mode = flag;
+		newNode->next = head;
+	}
+
    printf("Flag is %d, length of pathname is %d\n", flag, strlen(pathname));
    printf("File descriptor created: %d\n", filedesc);
    
@@ -332,8 +364,10 @@ void work_open(int connfd){ 			// be sure to use semaphores
    rio_writen(connfd, charfile, strlen(charfile));
    
    printf("ending function\n");
-
-	return;
+   //freeing malloc-ed items
+   free(flags);
+   free(charfile);
+   return;
 }
 
 void work_read(int connfd){
