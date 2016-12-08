@@ -60,6 +60,25 @@ typedef struct {
 	char rio_buf[RIO_BUFSIZE]; /* Internal buffer */
 } rio_t;
 
+typedef struct {
+   char * filename;
+   int flag;
+   fileNode * next;
+} fileNode;
+
+typedef struct {
+   int connfd;
+   char * filename;
+   int fileflag;
+   connectionNode * next;
+
+} connectionNode
+
+typedef struct {
+   int size;
+   connectionNode * front;
+} queue;
+
 typedef struct sockaddr SA;
 
 /*
@@ -81,55 +100,6 @@ void V(sem_t *sem)
     	exit(0);
     }
 }
-
-
-/*
-
-*/
-
-int netserverinit(char * hostname, int filemode){
-	int port = 9000;
-
-	int error, listenfd, optval = 1;
-	struct sockaddr_in serveraddr;
-
-	struct addrinfo * res;
-
-	error = getaddrinfo(hostname,NULL, NULL, &res);
-	if (error = EAI_NONAME){
-		//eh_errno(HOST_NOT_FOUND); //Sets and error
-		return -1;	
-	}
-	// Create a socket descriptor
-	if ((listenfd = socket(res->ai_family, res->ai_socktype, 0)) < 0){
-		return -1;
-	}
-
-	// Eliminates an "Address already in use" error from bind
-	if (setsockopt(listenfd, SOL_SOCKET, SO_REUSEADDR,(const void *)&optval , sizeof(int)) < 0){
-		return -1;
-	}
-
-	// Listenfd will be an end point for all request to port on any IP address for this host
-	bzero((char *) &serveraddr, sizeof(serveraddr));
-	serveraddr.sin_family = AF_INET;
-	serveraddr.sin_addr.s_addr = htonl(INADDR_ANY);
-	serveraddr.sin_port = htons((unsigned short)port);
-	if (bind(listenfd, (SA *)&serveraddr, sizeof(serveraddr)) < 0){
-		return -1;
-	}
-
-	/* Make it a listening socket ready to accept connection requests */
-	if (listen(listenfd, LISTENQ) < 0){
-		return -1;
-	}
-
-	return listenfd;
-}
-
-
-
-
 
 /*
 	Create an empty, bounded, shared FIFO buffer with n slots
@@ -333,6 +303,8 @@ ssize_t rio_writen(int fd, void *usrbuf, size_t n)
 
 sbuf_t sbuf; 									// shared buffer of connected descriptors
 rio_t rio;
+queue * q;
+fileNode * front;
 
 void work_open(int connfd){ 			// be sure to use semaphores
 	printf("OPEN FUNCTION RUNNING...\n");
