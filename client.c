@@ -32,6 +32,10 @@
 #define MAXLINE     8192
 #define RIO_BUFSIZE 8192
 
+ #define UNRESTRICTED 0
+ #define EXCLUSIVE    1
+ #define TRANSACTION  2
+
 typedef struct {
 	int rio_fd;                /* Descriptor for this internal buf */
 	int rio_cnt;               /* Unread bytes in internal buf */
@@ -174,6 +178,7 @@ ssize_t rio_writen(int fd, void *usrbuf, size_t n)
 /*******************************************************************************************************************/
 
 int port, clientfd, filedesc;
+int init = 1;   
 char * host;
 rio_t rio;
 char file[10000];
@@ -230,6 +235,15 @@ int netopen(char * pathname, int flags){
 	// receive response from program
 	rio_readlineb(&rio, buf, MAXLINE);		// receive response in buf, modify to be a string for atoi
 	buf[strlen(buf)-1] = '\0';
+	if (!strcmp(buf, "WAIT\n")){
+		rio_readlineb(&rio, buf, MAXLINE);	
+		buf[strlen(buf)-1] = '\0';
+		if (!strcmp(buf, "TIMEOUT")){
+			printf("Timeout error....\n");
+			close(clientfd);
+			return -1;
+		}
+	}
 	printf("Client received: %s\n", buf);
 
 
@@ -398,8 +412,6 @@ int main(int argc, char ** argv){
 	char input[MAXLINE];
 	char filepath[MAXLINE];
 
-
-
 	while (1){
 
 		printf("Enter:  {OPEN}, {READ}, {WRITE}, {ECHO}, or {CLOSE}\n");
@@ -409,7 +421,7 @@ int main(int argc, char ** argv){
 		if (!strcmp(input, "OPEN")){
 			printf("Enter filepath:  ");
 			scanf("%s", filepath);
-			filedesc = netopen(filepath, O_RDWR);
+			filedesc = netopen(filepath, O_RDONLY);
 		}
 		else if (!strcmp(input, "READ")){
 			printf("Enter file descriptor:  ");
