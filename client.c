@@ -235,9 +235,12 @@ int netopen(char * pathname, int flags){
 	// receive response from program
 	rio_readlineb(&rio, buf, MAXLINE);		// receive response in buf, modify to be a string for atoi
 	buf[strlen(buf)-1] = '\0';
-	if (!strcmp(buf, "WAIT\n")){
+	if (!strcmp(buf, "WAIT")){
+
+		printf("File request blocked due to policy conflict, please wait...\n");
 		rio_readlineb(&rio, buf, MAXLINE);	
 		buf[strlen(buf)-1] = '\0';
+
 		if (!strcmp(buf, "TIMEOUT")){
 			printf("Timeout error....\n");
 			close(clientfd);
