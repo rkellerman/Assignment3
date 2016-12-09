@@ -149,11 +149,12 @@ int enqueue(int connfd, int fileflag, char * filename){
       while (ptr->next != NULL){
          ptr = ptr->next;
       }
-      ptr = (connectionNode*)malloc(sizeof(connectionNode));
-      ptr->connfd = connfd;
-      ptr->fileflag = fileflag;
-      ptr->filename = filename;
-      ptr->next = NULL;
+      connectionNode * temp = (connectionNode*)malloc(sizeof(connectionNode));
+      temp->connfd = connfd;
+      temp->fileflag = fileflag;
+      temp->filename = filename;
+      temp->next = NULL;
+      ptr->next = temp;
       q->size++;
       return 0;
    }
@@ -180,7 +181,11 @@ int getorset(char * filename){  // check list for current file and return value,
    fileNode * prev = NULL;
    while (ptr != NULL){  
       printf("%s | %d -->", ptr->filename, ptr->flag); 
-      if (!strcmp(filename, front->filename)){    // file is currently in the list
+      
+      
+      
+      
+      if (!strcmp(filename, ptr->filename)){    // file is currently in the list
          int flag = ptr->flag;
          if (flag == 0){
             ptr->flag = 1;
@@ -397,7 +402,7 @@ rio_t rio;
 int fileMode = TRANSACTION;            // set to TRANSACTION for testing purposes
 
 void work_open(int connfd){ 			// be sure to use semaphores
-	printf("OPEN FUNCTION RUNNING...\n");
+	
 	
 	char buf[MAXLINE];
 	
@@ -439,6 +444,8 @@ void work_open(int connfd){ 			// be sure to use semaphores
             // need to send this request to the queue for later
             enqueue(connfd, flag, pathname);
             printf("File already open in write mode, please wait...\n");
+            sprintf(buf, "WAIT\n");
+			   rio_writen(connfd, buf, strlen(buf));
             return;
          }
       }
@@ -446,12 +453,15 @@ void work_open(int connfd){ 			// be sure to use semaphores
    else if (fileMode == TRANSACTION){
       if (flag == O_RDONLY || flag == O_WRONLY || flag == O_RDWR){
          int response = getorset(pathname);
+         printf("RESPONSE FROM GET OR SET IS %d\n", response);
          if (response == 0){
             // all is well, we can proceed
          }
          else if (response == -1){
             // need to send this request to the queue for later
             enqueue(connfd, flag, pathname);
+            sprintf(buf, "WAIT\n");
+			   rio_writen(connfd, buf, strlen(buf));
             printf("File already open in write mode, please wait...\n");
             return;
          }
@@ -463,14 +473,12 @@ void work_open(int connfd){ 			// be sure to use semaphores
    int success = insert(pathname, filedesc);
 
    
-   printf("Flag is %d, length of pathname is %d\n", flag, strlen(pathname));
+   // printf("Flag is %d, length of pathname is %d\n", flag, strlen(pathname));
    printf("File descriptor created: %d\n", filedesc);
    
    char * charfile = malloc(3);
    sprintf(charfile, "%d\n", filedesc);
    rio_writen(connfd, charfile, strlen(charfile));
-   
-   printf("ending function\n");
 
 	return;
 }
@@ -615,7 +623,28 @@ void * worker(void * vargp){
 
 void * queue_monitor(void * vargp){
 	
+	char buf[MAXLINE];
+	
+	
 	while (1){
+		
+		sprintf(buf, "");
+		
+		sleep(5);
+		connectionNode * ptr = q->front;
+      while (ptr != NULL){
+          sprintf(buf, "%s%s | %d | %d --> ", buf, ptr->filename, ptr->fileflag, ptr->connfd);
+          ptr = ptr->next;
+      }
+      sprintf(buf, "%sNULL\n", buf);
+      if (!strcmp(buf, "NULL\n")){
+         //printf("%s\n", buf);
+      }
+      else {
+        printf("%s\n", buf);
+      }
+		
+		
 	}
 
    return NULL;
