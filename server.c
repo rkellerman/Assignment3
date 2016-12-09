@@ -39,6 +39,8 @@
 #define MAXLINE     8192
 #define RIO_BUFSIZE 8192
 
+
+
 typedef struct {
 	int * buf; 				// buffer array
 	int n; 					// maximum number of slots
@@ -63,21 +65,72 @@ typedef struct {
 typedef struct {
    char * filename;
    int flag;
-   fileNode * next;
+   struct fileNode * next;
 } fileNode;
 
-typedef struct {
+typedef struct connectionNode{
    int connfd;
    char * filename;
    int fileflag;
-   connectionNode * next;
-
-} connectionNode
+   struct connectionNode * next;
+} connectionNode;
 
 typedef struct {
    int size;
-   connectionNode * front;
+   struct connectionNode * front;
 } queue;
+
+typedef struct {
+   int fd;
+   char * filename;
+   struct fdNode * next;
+
+} fdNode;
+
+queue * q;
+fileNode * front;
+fdNode * fdfront;
+
+int insert(char * filename, int fd){
+   fdNode * ptr = (fdNode*)malloc(sizeof(fdNode));
+   ptr->filename = filename;
+   ptr->fd = fd;
+   ptr->next = fdfront;
+   fdfront = ptr;
+}
+
+int delete(int fd){
+   fdNode * ptr = fdfront;
+   fdNode * prev = NULL;
+   if (ptr == NULL){
+      return -1;
+   }
+   if (fdfront->fd == fd){
+      fdfront = fdfront->next;
+      return 0;
+   }
+   while (ptr != NULL){
+      if (fd == ptr->fd){
+         prev->next = ptr->next;
+         return 0;
+      }
+      prev = ptr;
+      ptr = ptr->next;
+   }
+   return -1;
+}
+
+void find(char * filename, int fd){
+   fdNode * ptr = fdfront;
+   while (ptr != NULL){
+      if (fd == ptr->fd){
+         memcpy(filename, ptr->filename, strlen(ptr->filename));
+         return;
+      }
+      ptr = ptr->next;
+   }
+   return;
+}
 
 int enqueue(int connfd, int fileflag, char * filename){ 
       
@@ -90,7 +143,7 @@ int enqueue(int connfd, int fileflag, char * filename){
       ptr->next = NULL;
       q->front = ptr;
       q->size++;
-      retrurn 0;           
+      return 0;           
    }
    else {
       while (ptr->next != NULL){
@@ -125,7 +178,8 @@ connectionNode* dequeue(){
 int getorset(char * filename){  // check list for current file and return value, insert if not there --- ONLY FOR OPEN FUNCTION
    fileNode * ptr = front;
    fileNode * prev = NULL;
-   while (ptr != NULL){   
+   while (ptr != NULL){  
+      printf("%s | %d -->", ptr->filename, ptr->flag); 
       if (!strcmp(filename, front->filename)){    // file is currently in the list
          int flag = ptr->flag;
          if (flag == 0){
@@ -162,23 +216,14 @@ int getorset(char * filename){  // check list for current file and return value,
 
 int set(int fd){     // uses file descriptor to get filename, then use filename to find entry in list, and set flag to 0, for use on CLOSE
 
-    int MAXSIZE = 0xFFF;
-    char proclnk[0xFFF];
     char filename[0xFFF];
-    ssize_t r;
-    
-    sprintf(proclnk, "/proc/self/fd/%d", fd);
-    r = readlink(proclnk, filename, MAXSIZE);
-    if (r < 0)
-    {
-        printf("failed to readlink\n");
-        return -1;
-    }
-    filename[r] = '\0';
-    printf("fd -> filename: %d -> %s\n", fd, filename);
+    find(filename, fd);
     
     fileNode * ptr = front;
-    while (front != NULL){
+    while (ptr != NULL){
+    	
+    	 printf("%s | %d -- >", ptr->filename, ptr->flag);
+    	 
        if (!strcmp(filename, ptr->filename)){
           ptr->flag = 0;
           return 0;     // success
@@ -348,8 +393,7 @@ ssize_t rio_writen(int fd, void *usrbuf, size_t n)
 
 sbuf_t sbuf; 									// shared buffer of connected descriptors
 rio_t rio;
-queue * q;
-fileNode * front;
+
 int fileMode = TRANSACTION;            // set to TRANSACTION for testing purposes
 
 void work_open(int connfd){ 			// be sure to use semaphores
@@ -395,6 +439,7 @@ void work_open(int connfd){ 			// be sure to use semaphores
             // need to send this request to the queue for later
             enqueue(connfd, flag, pathname);
             printf("File already open in write mode, please wait...\n");
+            return;
          }
       }
    }
@@ -408,11 +453,15 @@ void work_open(int connfd){ 			// be sure to use semaphores
             // need to send this request to the queue for later
             enqueue(connfd, flag, pathname);
             printf("File already open in write mode, please wait...\n");
+            return;
          }
       }
    }
    
    int filedesc = open(pathname, flag);
+   
+   int success = insert(pathname, filedesc);
+
    
    printf("Flag is %d, length of pathname is %d\n", flag, strlen(pathname));
    printf("File descriptor created: %d\n", filedesc);
@@ -504,6 +553,9 @@ void work_close(int connfd){
    
    int success = close(filedesc);
    
+   set(filedesc);
+   int result = delete(filedesc);
+   
    char * charbyte = malloc(10);
    sprintf(charbyte, "%d\n", success);
    
@@ -561,6 +613,14 @@ void * worker(void * vargp){
 	}
 }
 
+void * queue_monitor(void * vargp){
+	
+	while (1){
+	}
+
+   return NULL;
+}
+
 int main(int argc, char ** argv){
 
 	int i, listenfd, connfd, port;
@@ -584,6 +644,7 @@ int main(int argc, char ** argv){
    q->front = NULL;
    
    front = NULL;
+   fdfront = NULL;
 
 	for (i = 0; i < NTHREADS; i++){					// create the worker threads
 		pthread_create(&tid, NULL, worker, NULL);
@@ -593,13 +654,40 @@ int main(int argc, char ** argv){
 	gethostname(hostname, 1024);
 
 	printf("Server %s ready on port %d\n", hostname, port);
+	
+	// create thread to monitor the queue and service/execute timeout
+	
+	pthread_create(&tid, NULL, queue_monitor, NULL);
 
 	while (1){
 		connfd = accept(listenfd, (SA*)&clientaddr, &clientlen);
 		sbuf_insert(&sbuf, connfd);
 	}
+	
+	
 
 	printf("\nServer terminating...\n");
 	return 0;
 }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
