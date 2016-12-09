@@ -29,6 +29,10 @@
 #include <netinet/in.h>
 #include <arpa/inet.h>
 
+#define UNRESTRICTED 0
+#define EXCLUSIVE    1
+#define TRANSACTION  2
+
 #define NTHREADS 4
 #define SBUFSIZE 16
 #define LISTENQ  1024
@@ -47,10 +51,6 @@ typedef struct {
 
 int itemsVal = 0;
 int slotsVal;
-
-int unrestricted;
-pthread_t exclusive;
-pthread_t transaction;
 
 
 typedef struct {
@@ -89,6 +89,7 @@ int enqueue(int connfd, int fileflag, char * filename){
       ptr->filename = filename;
       ptr->next = NULL;
       q->front = ptr;
+      q->size++;
       retrurn 0;           
    }
    else {
@@ -100,6 +101,7 @@ int enqueue(int connfd, int fileflag, char * filename){
       ptr->fileflag = fileflag;
       ptr->filename = filename;
       ptr->next = NULL;
+      q->size++;
       return 0;
    }
 
@@ -113,6 +115,7 @@ connectionNode* dequeue(){
    }
    else {
       q->front = ptr->next;
+      q->size--;
       return ptr;
    }
 
@@ -184,11 +187,6 @@ int set(int fd){     // uses file descriptor to get filename, then use filename 
     }
     return -1;          // error
 }
-   
-
-
-
-}
 
 typedef struct sockaddr SA;
 
@@ -227,8 +225,6 @@ void sbuf_init(sbuf_t * sp, int n){
 	sp->slots = sem_open("/slots", O_CREAT, 0644, n);
 	sp->items = sem_open("/items", O_CREAT, 0644, 0);
 */
-
-
 
 	sem_init(&sp->mutex, 0, 1);					// binary semaphore for locking
 	sem_init(&sp->slots, 0, n); 				// initally has n empty slots
@@ -332,31 +328,6 @@ void rio_readinitb(rio_t *rp, int fd)
 
 static ssize_t rio_read(rio_t *rp, char *usrbuf, size_t n)
 {
-    int cnt;
-
-    while (rp->rio_cnt <= 0) {  /* refill if buf is empty */
-	rp->rio_cnt = read(rp->rio_fd, rp->rio_buf,
-			   sizeof(rp->rio_buf));
-	if (rp->rio_cnt < 0) {
-	    if (errno != EINTR) /* interrupted by sig handler return */
-		return -1;
-	}
-	else if (rp->rio_cnt == 0)  /* EOF */
-	    return 0;
-	else
-	    rp->rio_bufptr = rp->rio_buf; /* reset buffer ptr */
-    }
-
-    /* Copy min(n, rp->rio_cnt) bytes from internal buf to user buf */
-    cnt = n;
-    if (rp->rio_cnt < n)
-	cnt = rp->rio_cnt;
-    memcpy(usrbuf, rp->rio_bufptr, cnt);
-    rp->rio_bufptr += cnt;
-    rp->rio_cnt -= cnt;
-    return cnt;
-}
-
 /*
 	Reads the next text line from file rp, copies it to memory location usrbuf,
 	and termines the text line with the null (zero) character. The rio_readlineb
@@ -366,26 +337,6 @@ static ssize_t rio_read(rio_t *rp, char *usrbuf, size_t n)
 
 ssize_t rio_readlineb(rio_t *rp, void *usrbuf, size_t maxlen)
 {
-    int n, rc;
-    char c, *bufp = usrbuf;
-
-    for (n = 1; n < maxlen; n++) {
-	if ((rc = rio_read(rp, &c, 1)) == 1) {
-	    *bufp++ = c;
-	    if (c == '\n')
-		break;
-	} else if (rc == 0) {
-	    if (n == 1)
-		return 0; /* EOF, no data read */
-	    else
-		break;    /* EOF, some data was read */
-	} else
-	    return -1;	  /* error */
-    }
-    *bufp = 0;
-    return n;
-}
-
 /*
 
 	Transfer n bytes from location usrbuf to descripter fd
@@ -393,29 +344,13 @@ ssize_t rio_readlineb(rio_t *rp, void *usrbuf, size_t maxlen)
 
 ssize_t rio_writen(int fd, void *usrbuf, size_t n)
 {
-    size_t nleft = n;
-    ssize_t nwritten;
-    char *bufp = usrbuf;
-
-    while (nleft > 0) {
-	if ((nwritten = write(fd, bufp, nleft)) <= 0) {
-	    if (errno == EINTR)  /* interrupted by sig handler return */
-		nwritten = 0;    /* and call write() again */
-	    else
-		return -1;       /* errorno set by write() */
-	}
-	nleft -= nwritten;
-	bufp += nwritten;
-    }
-    return n;
-}
-
 /*******************************************************************************************************************/
 
 sbuf_t sbuf; 									// shared buffer of connected descriptors
 rio_t rio;
 queue * q;
 fileNode * front;
+int fileMode = TRANSACTION;            // set to TRANSACTION for testing purposes
 
 void work_open(int connfd){ 			// be sure to use semaphores
 	printf("OPEN FUNCTION RUNNING...\n");
@@ -442,6 +377,41 @@ void work_open(int connfd){ 			// be sure to use semaphores
    printf("Pathname is \"%s\"\n", pathname);
    
    int flag = atoi(flags);
+   
+   // perform the check here
+   if (fileMode == UNRESTRICTED){
+      // no need to do any checking
+   }
+   else if (fileMode == EXCLUSIVE){
+      if (flag == O_RDONLY){
+         // no need to do any checking
+      } 
+      else if (flag == O_WRONLY || flag == O_RDWR){
+         int response = getorset(pathname);
+         if (response == 0){
+            // all is well, we can proceed
+         }
+         else if (response == -1){
+            // need to send this request to the queue for later
+            enqueue(connfd, flag, pathname);
+            printf("File already open in write mode, please wait...\n");
+         }
+      }
+   }
+   else if (fileMode == TRANSACTION){
+      if (flag == O_RDONLY || flag == O_WRONLY || flag == O_RDWR){
+         int response = getorset(pathname);
+         if (response == 0){
+            // all is well, we can proceed
+         }
+         else if (response == -1){
+            // need to send this request to the queue for later
+            enqueue(connfd, flag, pathname);
+            printf("File already open in write mode, please wait...\n");
+         }
+      }
+   }
+   
    int filedesc = open(pathname, flag);
    
    printf("Flag is %d, length of pathname is %d\n", flag, strlen(pathname));
@@ -607,9 +577,13 @@ int main(int argc, char ** argv){
 	sbuf_init(&sbuf, SBUFSIZE);
 	listenfd = open_listenfd(port);
 	
+	// Initialize both the file list and the queue
+	
 	q = (queue *)malloc(sizeof(queue));
 	q->size = 0;
    q->front = NULL;
+   
+   front = NULL;
 
 	for (i = 0; i < NTHREADS; i++){					// create the worker threads
 		pthread_create(&tid, NULL, worker, NULL);
