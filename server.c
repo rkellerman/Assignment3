@@ -401,7 +401,7 @@ rio_t rio;
 
 int fileMode = TRANSACTION;            // set to TRANSACTION for testing purposes
 
-void work_open(int connfd){ 			// be sure to use semaphores
+int work_open(int connfd){ 			// be sure to use semaphores
 	
 	
 	char buf[MAXLINE];
@@ -446,7 +446,7 @@ void work_open(int connfd){ 			// be sure to use semaphores
             printf("File already open in write mode, please wait...\n");
             sprintf(buf, "WAIT\n");
 			   rio_writen(connfd, buf, strlen(buf));
-            return;
+            return -1;
          }
       }
    }
@@ -463,7 +463,7 @@ void work_open(int connfd){ 			// be sure to use semaphores
             sprintf(buf, "WAIT\n");
 			   rio_writen(connfd, buf, strlen(buf));
             printf("File already open in write mode, please wait...\n");
-            return;
+            return -1;
          }
       }
    }
@@ -480,7 +480,7 @@ void work_open(int connfd){ 			// be sure to use semaphores
    sprintf(charfile, "%d\n", filedesc);
    rio_writen(connfd, charfile, strlen(charfile));
 
-	return;
+	return 0;
 }
 
 void work_read(int connfd){
@@ -591,25 +591,34 @@ void * worker(void * vargp){
 			if (!strcmp(buf, "OPEN\n")){
 			  sprintf(buf, "PROCEED\n");
 			  rio_writen(connfd, buf, strlen(buf));
-			  work_open(connfd);
+			  int result = work_open(connfd);
+			  if (result == -1){
+			  
+			  }
+			  else {
+			     close(connfd);
+			  }
 			  break;
 			}
 			else if (!strcmp(buf, "WRITE\n")){
            sprintf(buf, "PROCEED\n");
 			  rio_writen(connfd, buf, strlen(buf));
 			  work_write(connfd);
+			  close(connfd);
 			  break;
 			}
 			else if (!strcmp(buf, "READ\n")){
            sprintf(buf, "PROCEED\n");
 			  rio_writen(connfd, buf, strlen(buf));
 			  work_read(connfd);
+			  close(connfd);
 			  break;
 			}
 			else if (!strcmp(buf, "CLOSE\n")){
            sprintf(buf, "PROCEED\n");
 			  rio_writen(connfd, buf, strlen(buf));
 			  work_close(connfd);
+			  close(connfd);
 			  break;
 			}
 			else {  // report some sort of error
@@ -617,7 +626,7 @@ void * worker(void * vargp){
 			}
 		}
 		printf("Closing\n");
-		close(connfd);
+		
 	}
 }
 
@@ -643,6 +652,9 @@ void * queue_monitor(void * vargp){
       else {
         printf("%s\n", buf);
       }
+      
+      ptr = q->front;
+      
 		
 		
 	}
