@@ -79,6 +79,117 @@ typedef struct {
    connectionNode * front;
 } queue;
 
+int enqueue(int connfd, int fileflag, char * filename){ 
+      
+   connectionNode * ptr = q->front;
+   if (ptr == NULL){    // no items exist, insert at the front
+      ptr = (connectionNode*)malloc(sizeof(connectionNode));
+      ptr->connfd = connfd;
+      ptr->fileflag = fileflag;
+      ptr->filename = filename;
+      ptr->next = NULL;
+      q->front = ptr;
+      retrurn 0;           
+   }
+   else {
+      while (ptr->next != NULL){
+         ptr = ptr->next;
+      }
+      ptr = (connectionNode*)malloc(sizeof(connectionNode));
+      ptr->connfd = connfd;
+      ptr->fileflag = fileflag;
+      ptr->filename = filename;
+      ptr->next = NULL;
+      return 0;
+   }
+
+}
+
+connectionNode* dequeue(){
+
+   connectionNode * ptr = q->front;
+   if (ptr == NULL){
+      return NULL;   
+   }
+   else {
+      q->front = ptr->next;
+      return ptr;
+   }
+
+}
+
+// returns -1 if file already exists and blocks current operation, 0 if not blocked or inserted successfully
+int getorset(char * filename){  // check list for current file and return value, insert if not there --- ONLY FOR OPEN FUNCTION
+   fileNode * ptr = front;
+   fileNode * prev = NULL;
+   while (ptr != NULL){   
+      if (!strcmp(filename, front->filename)){    // file is currently in the list
+         int flag = ptr->flag;
+         if (flag == 0){
+            ptr->flag = 1;
+            return 0;
+         }
+         else if (flag == 1){  // block the current operation, send a -1
+            return -1;
+         }
+      }
+      else {
+         prev = ptr;
+         ptr = ptr->next;
+      }
+   }
+   // if we've made it here, it doesn't exist in the list
+   if (front == NULL){
+   	ptr = (fileNode*)malloc(sizeof(fileNode));
+      ptr->filename = filename;
+      ptr->flag = 1;
+      ptr->next = NULL;
+      front = ptr;
+      return 0;
+   }
+   else {
+   	ptr = (fileNode*)malloc(sizeof(fileNode));
+      ptr->filename = filename;
+      ptr->flag = 1;
+      ptr->next = NULL;
+      prev->next = ptr;
+      return 0;
+   }
+}
+
+int set(int fd){     // uses file descriptor to get filename, then use filename to find entry in list, and set flag to 0, for use on CLOSE
+
+    int MAXSIZE = 0xFFF;
+    char proclnk[0xFFF];
+    char filename[0xFFF];
+    ssize_t r;
+    
+    sprintf(proclnk, "/proc/self/fd/%d", fd);
+    r = readlink(proclnk, filename, MAXSIZE);
+    if (r < 0)
+    {
+        printf("failed to readlink\n");
+        return -1;
+    }
+    filename[r] = '\0';
+    printf("fd -> filename: %d -> %s\n", fd, filename);
+    
+    fileNode * ptr = front;
+    while (front != NULL){
+       if (!strcmp(filename, ptr->filename)){
+          ptr->flag = 0;
+          return 0;     // success
+       }
+       ptr = ptr->next;
+    }
+    return -1;          // error
+}
+   
+
+
+
+}
+
 typedef struct sockaddr SA;
 
 /*
@@ -495,6 +606,10 @@ int main(int argc, char ** argv){
 	port = atoi(argv[1]);
 	sbuf_init(&sbuf, SBUFSIZE);
 	listenfd = open_listenfd(port);
+	
+	q = (queue *)malloc(sizeof(queue));
+	q->size = 0;
+   q->front = NULL;
 
 	for (i = 0; i < NTHREADS; i++){					// create the worker threads
 		pthread_create(&tid, NULL, worker, NULL);
