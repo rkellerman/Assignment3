@@ -317,6 +317,7 @@ Metadata * head;
 
 void work_open(int connfd){ 			// be sure to use semaphores
 	Metadata * data;
+	char *  access;
 	printf("OPEN FUNCTION RUNNING...\n");
 	
 	char buf[MAXLINE];
@@ -332,7 +333,7 @@ void work_open(int connfd){ 			// be sure to use semaphores
 
 
 	sprintf(buf, "PROCEED\n");
-   rio_writen(connfd, buf, strlen(buf));
+   rio_writen(connfd, buf, strlen(buf));	
    
    //Finds which flags are preesent
    char * flags = malloc(2);
@@ -348,14 +349,43 @@ void work_open(int connfd){ 			// be sure to use semaphores
    int flag = atoi(flags);
    int filedesc = open(pathname, flag);
    
+   //Gets the accesstype
+   rio_readlineb(&rio, access, MAXLINE);
+   int accessType = atoi(access);
    //Create a new node in the linked list
 	if (data == NULL){
-		Metadata * newNode = (Metadata*)malloc(sizeof(Metadata));
+		Metadata * newNode = (Metadata*) malloc(sizeof(Metadata));
 		newNode->filename = pathname;
-		newNode->mode = flag;
+		newNode->mode = accessType;
 		newNode->next = head;
 	}
+	else{
+		int modeBit = data->mode;
+		//Transition mode: If transition mode is requested and no other permissions issued
+		if ((accessType == 2)  && (modeBit == -1)){
+			printf("TRANSACTION MODE access granted\n");
+			data->mode = accessType;
+		}
+		/*Exclusive mode: Exclusive requested and no other permissions granted OR in unrestricted
+		mode with no writers*/
+		else if ((accessType == 1 && modeBit == -1) || (accessType == 1 && modeBit == 0 && data->write ==0)){
+			printf("EXCLUSIVE MODE access granted\n");
+			data->mode = accessType;
+			data->write++;
+		}
+		//Unrestricted: Only if not in other
+		else if ((accessType == 0 && modeBit != 2) || (accessType == 0 && modeBit == 1  && flag == O_RDONLY)){
+			printf("UNRESTRICTED MODE access granted\n");
+			data->mode = 0;
+			data->write++;
+		}
+		else{
+			printf("Permission Denied\n");
+			return;
 
+		}
+
+	}
    printf("Flag is %d, length of pathname is %d\n", flag, strlen(pathname));
    printf("File descriptor created: %d\n", filedesc);
    
@@ -368,6 +398,8 @@ void work_open(int connfd){ 			// be sure to use semaphores
    free(flags);
    free(charfile);
    return;
+
+
 }
 
 void work_read(int connfd){

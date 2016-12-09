@@ -270,7 +270,9 @@ int netopen(char * pathname, int flags){
 	else {
 		// report failure
 	}
-
+	//This writes the accessType into the buffer and to the client
+	sprintf(buf, "%d\n", accessType);
+	rio_writen(clientfd, buf, strlen(buf));
 	// receive response from program
 	rio_readlineb(&rio, buf, MAXLINE);		// receive response in buf, modify to be a string for atoi
 	buf[strlen(buf)-1] = '\0';
