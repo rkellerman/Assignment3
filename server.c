@@ -278,8 +278,6 @@ void sbuf_init(sbuf_t * sp, int n){
 	sem_init(&sp->items, 0, 0);					// initally holds 0 data items
 
 
-	printf("Init complete\n");
-
 }
 
 /*
@@ -375,6 +373,31 @@ void rio_readinitb(rio_t *rp, int fd)
 
 static ssize_t rio_read(rio_t *rp, char *usrbuf, size_t n)
 {
+    int cnt;
+
+    while (rp->rio_cnt <= 0) {  /* refill if buf is empty */
+	rp->rio_cnt = read(rp->rio_fd, rp->rio_buf,
+			   sizeof(rp->rio_buf));
+	if (rp->rio_cnt < 0) {
+	    if (errno != EINTR) /* interrupted by sig handler return */
+		return -1;
+	}
+	else if (rp->rio_cnt == 0)  /* EOF */
+	    return 0;
+	else
+	    rp->rio_bufptr = rp->rio_buf; /* reset buffer ptr */
+    }
+
+    /* Copy min(n, rp->rio_cnt) bytes from internal buf to user buf */
+    cnt = n;
+    if (rp->rio_cnt < n)
+	cnt = rp->rio_cnt;
+    memcpy(usrbuf, rp->rio_bufptr, cnt);
+    rp->rio_bufptr += cnt;
+    rp->rio_cnt -= cnt;
+    return cnt;
+}
+
 /*
 	Reads the next text line from file rp, copies it to memory location usrbuf,
 	and termines the text line with the null (zero) character. The rio_readlineb
@@ -384,6 +407,26 @@ static ssize_t rio_read(rio_t *rp, char *usrbuf, size_t n)
 
 ssize_t rio_readlineb(rio_t *rp, void *usrbuf, size_t maxlen)
 {
+    int n, rc;
+    char c, *bufp = usrbuf;
+
+    for (n = 1; n < maxlen; n++) {
+	if ((rc = rio_read(rp, &c, 1)) == 1) {
+	    *bufp++ = c;
+	    if (c == '\n')
+		break;
+	} else if (rc == 0) {
+	    if (n == 1)
+		return 0; /* EOF, no data read */
+	    else
+		break;    /* EOF, some data was read */
+	} else
+	    return -1;	  /* error */
+    }
+    *bufp = 0;
+    return n;
+}
+
 /*
 
 	Transfer n bytes from location usrbuf to descripter fd
@@ -391,12 +434,29 @@ ssize_t rio_readlineb(rio_t *rp, void *usrbuf, size_t maxlen)
 
 ssize_t rio_writen(int fd, void *usrbuf, size_t n)
 {
+    size_t nleft = n;
+    ssize_t nwritten;
+    char *bufp = usrbuf;
+
+    while (nleft > 0) {
+	if ((nwritten = write(fd, bufp, nleft)) <= 0) {
+	    if (errno == EINTR)  /* interrupted by sig handler return */
+		nwritten = 0;    /* and call write() again */
+	    else
+		return -1;       /* errorno set by write() */
+	}
+	nleft -= nwritten;
+	bufp += nwritten;
+    }
+    return n;
+}
+
 /*******************************************************************************************************************/
 
 sbuf_t sbuf; 									// shared buffer of connected descriptors
 rio_t rio;
-
-int fileMode = TRANSACTION;            // set to TRANSACTION for testing purposes
+init = 0;
+int fileMode = -1;            // set to TRANSACTION for testing purposes
 
 int work_open(int connfd){ 			// be sure to use semaphores
 	
@@ -570,6 +630,47 @@ void work_close(int connfd){
 
 }
 
+int initialize(int connfd){
+
+   char buf[MAXLINE];
+
+   if (init == 1){
+      sprintf(buf, "\n");
+	   rio_writen(connfd, buf, strlen(buf));
+	   return 0;
+   }
+   sprintf(buf, "PROCEED\n");
+	rio_writen(connfd, buf, strlen(buf));
+   
+   
+   printf("Here\n");
+   
+   rio_readlineb(&rio, buf, MAXLINE);
+   char * charfile = malloc(strlen(buf));
+   strcpy(charfile, buf);
+   charfile[strlen(buf)-1] = '\0';
+	
+	fileMode = atoi(charfile);
+	printf("Here\n");
+	if (fileMode < 3 && fileMode > -1){
+	  init = 1;
+	  printf("Server running in filemode %d\n", fileMode);
+	}
+	else {
+	   sprintf(buf, "\n");
+	   rio_writen(connfd, buf, strlen(buf));
+	   fileMode = -1;
+	   return -1;
+	}
+	printf("Here\n");
+	
+	sprintf(buf, "PROCEED\n");
+	rio_writen(connfd, buf, strlen(buf));
+	
+
+
+}
+
 void * worker(void * vargp){
 
 	pthread_detach(pthread_self());
@@ -617,6 +718,12 @@ void * worker(void * vargp){
            sprintf(buf, "PROCEED\n");
 			  rio_writen(connfd, buf, strlen(buf));
 			  work_close(connfd);
+			  close(connfd);
+			  break;
+			}
+			else if (!strcmp(buf, "INIT\n")){
+			  
+			  int success = initialize(connfd);
 			  close(connfd);
 			  break;
 			}
