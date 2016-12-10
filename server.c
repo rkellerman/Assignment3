@@ -643,7 +643,6 @@ int initialize(int connfd){
 	rio_writen(connfd, buf, strlen(buf));
    
    
-   printf("Here\n");
    
    rio_readlineb(&rio, buf, MAXLINE);
    char * charfile = malloc(strlen(buf));
@@ -651,7 +650,6 @@ int initialize(int connfd){
    charfile[strlen(buf)-1] = '\0';
 	
 	fileMode = atoi(charfile);
-	printf("Here\n");
 	if (fileMode < 3 && fileMode > -1){
 	  init = 1;
 	  printf("Server running in filemode %d\n", fileMode);
@@ -662,7 +660,6 @@ int initialize(int connfd){
 	   fileMode = -1;
 	   return -1;
 	}
-	printf("Here\n");
 	
 	sprintf(buf, "PROCEED\n");
 	rio_writen(connfd, buf, strlen(buf));
