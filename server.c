@@ -97,6 +97,8 @@ int insert(char * filename, int fd){
    ptr->fd = fd;
    ptr->next = fdfront;
    fdfront = ptr;
+   
+   
 }
 
 int delete(int fd){
@@ -179,11 +181,7 @@ connectionNode* dequeue(){
 int getorset(char * filename){  // check list for current file and return value, insert if not there --- ONLY FOR OPEN FUNCTION
    fileNode * ptr = front;
    fileNode * prev = NULL;
-   while (ptr != NULL){  
-      printf("%s | %d -->", ptr->filename, ptr->flag); 
-      
-      
-      
+   while (ptr != NULL){ 
       
       if (!strcmp(filename, ptr->filename)){    // file is currently in the list
          int flag = ptr->flag;
@@ -227,7 +225,6 @@ int set(int fd){     // uses file descriptor to get filename, then use filename 
     fileNode * ptr = front;
     while (ptr != NULL){
     	
-    	 printf("%s | %d -- >", ptr->filename, ptr->flag);
     	 
        if (!strcmp(filename, ptr->filename)){
           ptr->flag = 0;
@@ -564,6 +561,8 @@ void work_close(int connfd){
    set(filedesc);
    int result = delete(filedesc);
    
+   
+   
    char * charbyte = malloc(10);
    sprintf(charbyte, "%d\n", success);
    
@@ -633,13 +632,15 @@ void * worker(void * vargp){
 void * queue_monitor(void * vargp){
 	
 	char buf[MAXLINE];
+	char sub[MAXLINE];
 	
 	
 	while (1){
 		
+		// simply printing the contents of the queue
 		sprintf(buf, "");
 		
-		sleep(5);
+		sleep(10);
 		connectionNode * ptr = q->front;
       while (ptr != NULL){
           sprintf(buf, "%s%s | %d | %d --> ", buf, ptr->filename, ptr->fileflag, ptr->connfd);
@@ -650,10 +651,73 @@ void * queue_monitor(void * vargp){
          //printf("%s\n", buf);
       }
       else {
+        printf("CONTENTS OF THE QUEUE:\n");
         printf("%s\n", buf);
       }
       
-      ptr = q->front;
+      
+      // attempt to service item in the queue
+      connectionNode * current = dequeue();
+      while (current != NULL){
+          int response = getorset(current->filename);
+          if (response == 0){
+             // all is well, we can proceed
+             
+             int filedesc = open(current->filename, current->fileflag);
+             int success = insert(current->filename, filedesc);
+
+   
+             // printf("Flag is %d, length of pathname is %d\n", flag, strlen(pathname));
+             printf("File descriptor created: %d\n", filedesc);
+   
+             char * charfile = malloc(3);
+             sprintf(charfile, "%d\n", filedesc);
+             rio_writen(current->connfd, charfile, strlen(charfile));
+             close(current->connfd);
+             
+          }
+          else if (response == -1){
+             // timeout response is sent, current item is forgotten
+             sprintf(sub, "TIMEOUT\n");
+			    rio_writen(current->connfd, sub, strlen(sub));
+			    close(current->connfd);
+          }
+          
+          current = dequeue();
+       }
+       
+       
+       // printing the contents of the fdlist
+       sprintf(buf, "");
+       fdNode * ptr2 = fdfront;
+       while (ptr2 != NULL){
+           sprintf(buf, "%s%s | %d --> ", buf, ptr2->filename, ptr2->fd);
+           ptr2 = ptr2->next;
+       }
+       sprintf(buf, "%sNULL\n", buf);
+       if (!strcmp(buf, "NULL\n")){
+           // don't print
+       }
+       else {
+       	  printf("CONTENTS OF THE FD - FILENAME LIST:\n");
+           printf("%s\n",  buf);
+       }
+       
+       
+       sprintf(buf, "");
+       fileNode * ptr3 = front;
+       while (ptr3 != NULL){
+           sprintf(buf, "%s%s | %d --> ", buf, ptr3->filename, ptr3->flag);
+           ptr3 = ptr3->next;
+       }
+       sprintf(buf, "%sNULL\n", buf);
+       if (!strcmp(buf, "NULL\n")){
+           // don't print
+       }
+       else {
+       	  printf("CONTENTS OF THE OPEN FILENAME LIST:\n");
+           printf("%s\n",  buf);
+       }
       
 		
 		
