@@ -178,12 +178,17 @@ ssize_t rio_writen(int fd, void *usrbuf, size_t n)
 /*******************************************************************************************************************/
 
 int port, clientfd, filedesc;
-int init = 1;   
+int init = 0;   
 char * host;
 rio_t rio;
 char file[10000];
 
 int netopen(char * pathname, int flags){
+
+	if (init == 0){
+		printf("Please run init first\n");
+		return -1;
+	}
 
 	char buf[MAXLINE];
 
@@ -259,6 +264,11 @@ int netopen(char * pathname, int flags){
 
 int netread(int fildes, char * buf, size_t nbyte){
 
+	if (init == 0){
+		printf("Please run init first\n");
+		return -1;
+	}
+
 
 	char sub[MAXLINE];
 
@@ -305,6 +315,11 @@ int netread(int fildes, char * buf, size_t nbyte){
 }
 
 int netwrite(int fildes, char * file, size_t size){
+
+	if (init == 0){
+		printf("Please run init first\n");
+		return -1;
+	}
 
 	char sub[MAXLINE];
 
@@ -361,6 +376,11 @@ int netwrite(int fildes, char * file, size_t size){
 
 int netclose(int fildes){
 
+	if (init == 0){
+		printf("Please run init first\n");
+		return -1;
+	}
+
 	char sub[MAXLINE];
 
 
@@ -400,6 +420,64 @@ int netclose(int fildes){
 
 }
 
+int netserverinit(char * hostname, int filemode){
+
+	errno = 0;
+
+	struct hostent * hp;
+	if ((hp = gethostbyname(hostname)) == NULL){
+		errno = HOST_NOT_FOUND;
+		return -1; /* Check h_errno for cause of error */
+	}
+
+	char buf[MAXLINE];
+
+
+	clientfd = open_clientfd(host, port);
+	rio_readinitb(&rio, clientfd);
+
+
+	// write file path and flags to server program
+	// first write OPEN to buf and pass it
+
+	sprintf(buf, "INIT\n");
+
+
+	rio_writen(clientfd, buf, strlen(buf));
+	rio_readlineb(&rio, buf, MAXLINE);
+
+	if (!strcmp(buf, "PROCEED\n")){
+		//printf("I CAN PROCEED\n");
+	}
+	else {
+		printf("Server is initialized....\n");
+		init = 1;
+		close(clientfd);
+		return 0;     // technically not an error
+	}
+
+	sprintf(buf, "%d\n", filemode);
+
+	rio_writen(clientfd, buf, strlen(buf));
+	rio_readlineb(&rio, buf, MAXLINE);
+
+	if (!strcmp(buf, "PROCEED\n")){
+		//printf("I CAN PROCEED\n");
+	}
+	else {
+		printf("Invalid filemode, use 0, 1, or 2\n");
+		close(clientfd);
+		return -1;
+	}
+
+	init = 1;
+	printf("Init successful\n");
+	close(clientfd);
+	return 0;
+
+
+}
+
 int main(int argc, char ** argv){
 
 	char buf[MAXLINE];
@@ -417,7 +495,7 @@ int main(int argc, char ** argv){
 
 	while (1){
 
-		printf("Enter:  {OPEN}, {READ}, {WRITE}, {ECHO}, or {CLOSE}\n");
+		printf("Enter:  {OPEN}, {READ}, {WRITE}, {ECHO}, {INIT}, or {CLOSE}\n");
 		scanf("%s", input);
 
 
@@ -434,6 +512,13 @@ int main(int argc, char ** argv){
 			int numbytes = netread(filedesc, file, sizeof(file));
 
 			printf("%d bytes read...  The following are the contents of the file....\n%s\n", numbytes, file);
+		}
+		else if (!strcmp(input, "INIT")){
+			printf("Enter filemode {0}, {1}, or {2}\n");
+			char * charfile = malloc(3);
+			scanf("%s", charfile);
+			int filemode = atoi(charfile);
+			netserverinit(host, filemode);
 		}
 		else if (!strcmp(input, "WRITE")){
 			printf("Enter file descriptor:  ");
