@@ -62,7 +62,7 @@ typedef struct {
 	char rio_buf[RIO_BUFSIZE]; /* Internal buffer */
 } rio_t;
 
-typedef struct {
+typedef struct fileNode{
    char * filename;
    int flag;
    struct fileNode * next;
@@ -80,7 +80,7 @@ typedef struct {
    struct connectionNode * front;
 } queue;
 
-typedef struct {
+typedef struct fdNode {
    int fd;
    char * filename;
    struct fdNode * next;
@@ -455,7 +455,7 @@ ssize_t rio_writen(int fd, void *usrbuf, size_t n)
 
 sbuf_t sbuf; 									// shared buffer of connected descriptors
 rio_t rio;
-init = 0;
+int init = 0;
 int fileMode = -1;            // set to TRANSACTION for testing purposes
 
 int work_open(int connfd){ 			// be sure to use semaphores
@@ -483,7 +483,10 @@ int work_open(int connfd){ 			// be sure to use semaphores
    printf("Pathname is \"%s\"\n", pathname);
    
    int flag = atoi(flags);
-   
+   //should we first find if the file exists here?
+   int isAvailable = getorset(pathname); //This checks if the file exists
+   if (isAvailable == -1)
+
    // perform the check here
    if (fileMode == UNRESTRICTED){
       // no need to do any checking
@@ -493,7 +496,8 @@ int work_open(int connfd){ 			// be sure to use semaphores
          // no need to do any checking
       } 
       else if (flag == O_WRONLY || flag == O_RDWR){
-         int response = getorset(pathname);
+         int response = getorset(pathname); // tells us if file is in list
+         //errno = ERORFS
          if (response == 0){
             // all is well, we can proceed
          }
@@ -503,6 +507,7 @@ int work_open(int connfd){ 			// be sure to use semaphores
             printf("File already open in write mode, please wait...\n");
             sprintf(buf, "WAIT\n");
 			   rio_writen(connfd, buf, strlen(buf));
+            errno = EACCES;
             return -1;
          }
       }
@@ -520,6 +525,7 @@ int work_open(int connfd){ 			// be sure to use semaphores
             sprintf(buf, "WAIT\n");
 			   rio_writen(connfd, buf, strlen(buf));
             printf("File already open in write mode, please wait...\n");
+            errno = EACCES;
             return -1;
          }
       }
@@ -742,7 +748,7 @@ void * queue_monitor(void * vargp){
 	while (1){
 		
 		// simply printing the contents of the queue
-		sprintf(buf, "");
+		sprintf(buf, " ");
 		
 		sleep(10);
 		connectionNode * ptr = q->front;
@@ -792,7 +798,7 @@ void * queue_monitor(void * vargp){
        
        
        // printing the contents of the fdlist
-       sprintf(buf, "");
+       sprintf(buf, " ");
        fdNode * ptr2 = fdfront;
        while (ptr2 != NULL){
            sprintf(buf, "%s%s | %d --> ", buf, ptr2->filename, ptr2->fd);
@@ -808,7 +814,7 @@ void * queue_monitor(void * vargp){
        }
        
        
-       sprintf(buf, "");
+       sprintf(buf, " ");
        fileNode * ptr3 = front;
        while (ptr3 != NULL){
            sprintf(buf, "%s%s | %d --> ", buf, ptr3->filename, ptr3->flag);
