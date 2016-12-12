@@ -181,7 +181,7 @@ int port, clientfd, filedesc;
 int init = 0;   
 char * host;
 rio_t rio;
-char file[10000];
+
 
 int netopen(char * pathname, int flags){
 
@@ -262,6 +262,31 @@ int netopen(char * pathname, int flags){
 	return atoi(buf);
 }
 
+int * clientfds;
+pthread_mutex_t lock;
+
+char * bigread_thread(int clientfd, int i){
+
+	char * bigfilesegment = (char*)malloc((int)pow(2, 11) + 10);
+	char sub[MAXLINE];
+
+
+    printf("Hey\n");
+	rio_readinitb(&rio, clientfd);
+	rio_readlineb(&rio, bigfilesegment, (int)pow(2, 11) + 10);
+
+	bigfilesegment[strlen(bigfilesegment)-1] = '\0';
+
+	rio_readlineb(&rio, sub, MAXLINE);
+	sub[strlen(sub)-1] = '\0';
+	int segment = atoi(sub);
+
+
+	//printf("Segment %d returns:\n%s", i, bigfilesegment);
+
+	return bigfilesegment;
+}
+
 int netread(int fildes, char * buf, size_t nbyte){
 
 	if (init == 0){
@@ -292,14 +317,54 @@ int netread(int fildes, char * buf, size_t nbyte){
 	rio_writen(clientfd, sub, strlen(sub));
 	rio_readlineb(&rio, sub, MAXLINE);
 
+	char * charbyte = malloc(10);
+
 	if (!strcmp(sub, "PROCEED\n")){
 		//printf("I CAN PROCEED\n");
 	}
 	else {
-		// report failure
+		// report failure, 
+
+		close(clientfd);
+		
+		sub[strlen(sub)-1] = '\0';
+
+		int iterations = atoi(sub);
+		printf("ITERATIONS:  %d\n", iterations);
+
+		clientfds = (int*)malloc(sizeof(int)*iterations);
+		
+		pthread_mutex_init(&lock, NULL);
+
+		sleep(1);
+
+		int i;
+		for (i = 0; i < iterations; i++){
+			clientfds[i] = open_clientfd(host, port + i + 1);
+			printf("Connection established:  %d\n", clientfds[i]);
+		}
+
+		sleep(1);
+
+		pthread_t tids[iterations];
+
+		sprintf(buf, "");
+
+		for (i = 0; i < iterations; i++){
+
+			buf = strcat(buf, bigread_thread(clientfds[i], i));
+			close(clientfds[i]);
+			
+		}
+
+		//printf("%s\n", buf);
+
+		return strlen(buf);
+
+
+		// int success = bigread(char * buf, int connfd);
 	}
 
-	char * charbyte = malloc(10);
 	rio_readlineb(&rio, charbyte, MAXLINE);
 	charbyte[strlen(charbyte)-1] = '\0';
 
@@ -314,6 +379,17 @@ int netread(int fildes, char * buf, size_t nbyte){
 	return numbytes;
 }
 
+int findLength(FILE * fp){
+	int count = 0;
+	int newChar;
+	while ((newChar = fgetc(fp)) != EOF)
+		count++;
+
+	return count;
+}
+
+int * wclientfds;
+
 int netwrite(int fildes, char * file, size_t size){
 
 	if (init == 0){
@@ -326,6 +402,116 @@ int netwrite(int fildes, char * file, size_t size){
 
 	clientfd = open_clientfd(host, port);
 	rio_readinitb(&rio, clientfd);
+										// just for testing, BE SURE TO CHANGE
+
+	if (size > (int)pow(2, 11)){
+
+		printf("%s\n", file);
+
+
+		sprintf(sub, "LONG WRITE\n");
+	    rio_writen(clientfd, sub, strlen(sub));
+	    rio_readlineb(&rio, sub, MAXLINE);
+   
+	    if (!strcmp(sub, "PROCEED\n")){
+		    //printf("I CAN PROCEED\n");
+	    }
+	    else {
+		    // report failure
+		    printf("Recieved %sFailure... Returning\n", sub);
+		    return -1;
+	    }
+
+	    int iterations = (int)(size / pow(2, 11)) + 1;
+
+		sprintf(sub, "%d\n", iterations);  					// tell the server how many threads it needs to create
+		rio_writen(clientfd, sub, strlen(sub));
+		rio_readlineb(&rio, sub, MAXLINE);
+
+		if (!strcmp(sub, "PROCEED\n")){
+		    //printf("I CAN PROCEED\n");
+	    }
+	    else {
+		    // report failure
+		    printf("Recieved %sFailure... Returning\n", sub);
+		    return -1;
+	    }
+
+	    sprintf(sub, "%d\n", filedesc);  					// tell the server how many threads it needs to create
+		rio_writen(clientfd, sub, strlen(sub));
+		rio_readlineb(&rio, sub, MAXLINE);
+
+		if (!strcmp(sub, "PROCEED\n")){
+		    //printf("I CAN PROCEED\n");
+	    }
+	    else {
+		    // report failure
+		    printf("Recieved %sFailure... Returning\n", sub);
+		    return -1;
+	    }
+
+
+
+		wclientfds = (int*)malloc(sizeof(int)*iterations);
+
+		sleep(1);
+
+		int i;
+		for (i = 0; i < iterations; i++){
+			wclientfds[i] = open_clientfd(host, port + i + 1001);
+			printf("Connection established:  %d\n", wclientfds[i]);
+		}
+
+		
+
+		for (i = 0; i < iterations; i++){
+
+			sleep(1);
+
+			rio_readinitb(&rio, wclientfds[i]);
+
+			char bigfilesegment[(int)pow(2, 11) + 10]; 					// create an array capable of holding the maximum amount of text
+
+	     	int startIndex = (i)*(int)pow(2, 11);
+
+	    	printf("\nI started at %d\n", startIndex);
+
+	     	if (i + 1 < iterations){
+	     		printf("POOOOOOP\n");
+
+		    	memcpy(bigfilesegment, &file[startIndex], (int)pow(2,11));
+		    	bigfilesegment[(int)pow(2, 11)] = '\0';
+		    	sprintf(bigfilesegment, "%s\n", bigfilesegment);
+		    	printf("%s", bigfilesegment);
+	     	}
+	     	else {
+	 	    	int len = size - (int)pow(2, 11)*(iterations - 1);
+		    	printf("len = %d\n", len);
+		     	memcpy(bigfilesegment, &file[startIndex], len);
+		     	bigfilesegment[len] = '\0';
+		     	sprintf(bigfilesegment, "%s\n", bigfilesegment);
+		     	printf("%s", bigfilesegment);
+	     	}
+
+	     	printf("%d\n", strlen(bigfilesegment));
+	     	rio_writen(wclientfds[i], bigfilesegment, strlen(bigfilesegment));
+	     
+	     	close(wclientfds[i]);
+		}
+		sleep(1);
+
+		clientfd = open_clientfd(host, port + 2000);
+		rio_readinitb(&rio, clientfd);
+
+		printf("Connection %d\n", clientfd);
+
+		
+		rio_readlineb(&rio, sub, MAXLINE);
+	    sub[strlen(sub) - 1] = '\0';
+
+		close(clientfd);
+		return atoi(sub);
+	}
 
 	sprintf(sub, "WRITE\n");
 
@@ -382,7 +568,6 @@ int netclose(int fildes){
 	}
 
 	char sub[MAXLINE];
-
 
 	clientfd = open_clientfd(host, port);
 	rio_readinitb(&rio, clientfd);
@@ -480,6 +665,7 @@ int netserverinit(char * hostname, int filemode){
 
 int main(int argc, char ** argv){
 
+	char * file;
 	char buf[MAXLINE];
 
 	if (argc != 3){
@@ -495,20 +681,21 @@ int main(int argc, char ** argv){
 
 	while (1){
 
-		printf("Enter:  {OPEN}, {READ}, {WRITE}, {ECHO}, {INIT}, or {CLOSE}\n");
+		printf("Enter:  {OPEN}, {READ}, {WRITE}, {INIT}, or {CLOSE}\n");
 		scanf("%s", input);
 
 
 		if (!strcmp(input, "OPEN")){
 			printf("Enter filepath:  ");
 			scanf("%s", filepath);
-			filedesc = netopen(filepath, O_RDONLY);
+			filedesc = netopen(filepath, 2);
 		}
 		else if (!strcmp(input, "READ")){
 			printf("Enter file descriptor:  ");
 			char * charfile = malloc(3);
 			scanf("%s", charfile);
 			int filedesc = atoi(charfile);
+			file = (char*)malloc(10000);
 			int numbytes = netread(filedesc, file, sizeof(file));
 
 			printf("%d bytes read...  The following are the contents of the file....\n%s\n", numbytes, file);
@@ -525,35 +712,65 @@ int main(int argc, char ** argv){
 			char * charfile = malloc(3);
 			scanf("%s", charfile);
 			int filedesc = atoi(charfile);
-			printf("Enter text to be written:  ");
 
+			printf("Input from file?  y or n:   ");
+			scanf("%s", charfile);
 
+			if (!strcmp(charfile, "y")){
 
-			char *text = calloc(1,1);
-			int i = 0;
-			while( fgets(file, 10000, stdin) ) /* break with ^D or ^Z */
-			{
-				text = realloc( text, strlen(text)+1+strlen(file) );
-				if( !text ){} /* error handling */
-				strcat( text, file ); /* note a '\n' is appended here everytime */
-				printf("%s\n", file);
-				i++;
-				if (i == 2){
-					break;
+				int i = 0;
+				FILE * ptr_file;
+				ptr_file = fopen("bigtext.txt", "r");
+
+				if (!ptr_file){ 				// if ptr_file is NULL, there was an error
+					printf("ERROR reading file, check file name...\n");
+					exit(-1);
 				}
+
+				int filelength = findLength(ptr_file) + 10;
+				// printf("FILE LENGTH IS %d\n", filelength-10);
+				char * filefile = malloc(filelength);
+
+				rewind(ptr_file);
+
+				char ch;
+				for (i = 0; (i < filelength - 10) && ((ch = fgetc(ptr_file)) != EOF); i++){
+					filefile[i] = ch;
+				}
+				filefile[i] = '\0';
+
+				rewind(ptr_file);
+
+				fclose(ptr_file);
+
+				int success = netwrite(filedesc, filefile, strlen(filefile));
+				printf("Number of bytes written is %d\n", success);
+
+
 			}
-			printf("\ntext:\n%s",text);
-			int success = netwrite(filedesc, file, strlen(file));
-			printf("Number of bytes written is %d\n", success);
-		}
-		else if (!strcmp(input, "ECHO")){
-			while (fgets(buf, MAXLINE, stdin) != NULL){
-				if (!strcmp(buf, "q\n")){
-					printf("Quitting ECHO...\n");
-					break;
+			else {
+
+				printf("Enter text to be written:  ");
+
+				char *text = calloc(1,1);
+				int i = 0;
+				file = (char*)malloc(10000);
+
+				while( fgets(file, 10000, stdin) ) /* break with ^D or ^Z */
+				{
+					text = realloc( text, strlen(text)+1+strlen(file) );
+					if( !text ){} /* error handling */
+					strcat( text, file ); /* note a '\n' is appended here everytime */
+					printf("%s\n", file);
+					i++;
+					if (i == 2){
+						break;
+					}
 				}
-				rio_writen(clientfd, buf, strlen(buf));
-				rio_readlineb(&rio, buf, MAXLINE);
+				printf("\ntext:\n%s",text);
+
+				int success = netwrite(filedesc, text, strlen(text));
+				printf("Number of bytes written is %d\n", success);
 			}
 		}
 		else if (!strcmp(input, "CLOSE")){
