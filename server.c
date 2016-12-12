@@ -53,6 +53,8 @@ typedef struct {
 
 int itemsVal = 0;
 int slotsVal;
+sem_t lock;
+sem_t wlock;
 
 
 typedef struct {
@@ -454,9 +456,14 @@ ssize_t rio_writen(int fd, void *usrbuf, size_t n)
 /*******************************************************************************************************************/
 
 sbuf_t sbuf; 									// shared buffer of connected descriptors
+sbuf_t sbuf_read, sbuf_write;
+sbuf_t sbuf_segment, sbuf_wsegment;
 rio_t rio;
 init = 0;
-int fileMode = -1;            // set to TRANSACTION for testing purposes
+int fileMode = -1; 
+int iterations;           
+int port;
+char * bigfile;
 
 int work_open(int connfd){ 			// be sure to use semaphores
 	
@@ -540,6 +547,56 @@ int work_open(int connfd){ 			// be sure to use semaphores
 	return 0;
 }
 
+int bigread(int portport){
+   
+   pthread_detach(pthread_self());
+   
+    while (1){
+    	
+        int connfd = sbuf_remove(&sbuf_read);
+        int segment = sbuf_remove(&sbuf_segment);
+        
+        
+        printf("Connection accepted:  %d, Servicing segment:  %d\n", connfd, segment);
+        
+        char bigfilesegment[(int)pow(2, 11) + 10]; 					// create an array capable of holding the maximum amount of text
+
+	     int startIndex = (segment)*(int)pow(2, 11);
+
+	     printf("\nI started at %d\n", startIndex);
+
+	     if (segment + 1 < iterations){
+		     memcpy(bigfilesegment, &bigfile[startIndex], (int)pow(2,11));
+		     bigfilesegment[(int)pow(2, 11)] = '\0';
+		     sprintf(bigfilesegment, "%s\n", bigfilesegment);
+		     printf("%s", bigfilesegment);
+	     }
+	     else {
+	 	     int len = strlen(bigfile) - (int)pow(2, 11)*(iterations - 1);
+		     printf("len = %d\n", len);
+		     memcpy(bigfilesegment, &bigfile[startIndex], len);
+		     bigfilesegment[len] = '\0';
+		     sprintf(bigfilesegment, "%s\n", bigfilesegment);
+		     printf("%s", bigfilesegment);
+	     }
+	     
+	     sem_wait(&lock);
+	     
+	     rio_writen(connfd, bigfilesegment, strlen(bigfilesegment));
+	     char * charfile = malloc(3);
+        sprintf(charfile, "%d\n", segment);
+        rio_writen(connfd, charfile, strlen(charfile));
+        
+        close(connfd);
+        
+        sem_post(&lock);
+	     
+        
+    
+    
+    }
+}
+
 void work_read(int connfd){
 
    char buf[MAXLINE];
@@ -548,8 +605,7 @@ void work_read(int connfd){
    strcpy(charfile, buf);
    charfile[strlen(buf)-1] = '\0';
    
-   sprintf(buf, "PROCEED\n");
-	rio_writen(connfd, buf, strlen(buf));
+   
    
    int filedesc = atoi(charfile);
    printf("File descriptor received is %d\n", filedesc);
@@ -557,6 +613,55 @@ void work_read(int connfd){
    char file[10000];
 
    int numbytes = read(filedesc, file, 10000);
+   
+   
+   
+   if (numbytes < (int)pow(2, 11)){
+      sprintf(buf, "PROCEED\n");
+	   rio_writen(connfd, buf, strlen(buf));
+	}
+	else {
+	   
+	   // do stuff for sending back several buffers of read stuff
+	   
+	   socklen_t clientlen = sizeof(struct sockaddr_in);
+	   struct sockaddr_in clientaddr;
+	   
+	   bigfile = (char*)malloc(numbytes);
+	   memcpy(bigfile, file, numbytes);
+	   
+	   iterations = (int)(numbytes / pow(2, 11)) + 1;
+	   
+	   sprintf(buf, "%d\n", iterations);
+	   rio_writen(connfd, buf, strlen(buf));
+	   
+	   close(connfd);
+	   
+	   int i;
+	   pthread_t tids[iterations];
+	   int * listenfds = (int*)malloc(iterations*sizeof(int));
+	   
+	   sem_init(&lock, 0, 1);	
+	   sbuf_init(&sbuf_read, 10);
+	   sbuf_init(&sbuf_segment, 10);
+	   
+	   for(i = 0; i < iterations; i++){
+	       listenfds[i] = open_listenfd(port + i + 1);
+	   }
+	   
+	   for (i = 0; i < iterations; i++){
+	      connfd = accept(listenfds[i], (SA*)&clientaddr, &clientlen);
+	      sbuf_insert(&sbuf_read, connfd);
+	      sbuf_insert(&sbuf_segment, i);
+	   }
+	   
+	   
+	   for (i = 0; i < 10; i++){
+	       
+	       pthread_create(&tids[i], NULL, bigread, port + i + 1);
+	   }
+	   return;
+	}
    
    printf("%d bytes read:  %s\n", numbytes, file);
    
@@ -569,6 +674,8 @@ void work_read(int connfd){
    rio_writen(connfd, file, strlen(file));
 
 }
+
+
 
 void work_write(int connfd){
 
@@ -627,6 +734,126 @@ void work_close(int connfd){
    sprintf(charbyte, "%d\n", success);
    
    rio_writen(connfd, charbyte, strlen(charbyte));
+
+}
+
+char * writefile;
+int num = 0;
+
+void * bigwrite(int portport){
+
+    pthread_detach(pthread_self());
+    char bigfilesegment[(int)pow(2, 11) + 2]; 
+   
+    while (1){
+    	
+    	
+        int connfd = sbuf_remove(&sbuf_write);
+        int segment = sbuf_remove(&sbuf_wsegment);
+        
+        sem_wait(&wlock);
+        
+        rio_readinitb(&rio, connfd);
+        
+        printf("Connection accepted:  %d\n");
+        
+        rio_readlineb(&rio, bigfilesegment, (int)pow(2, 11) + 2);
+        bigfilesegment[strlen(bigfilesegment)-1] = '\0';
+        
+        
+        printf("Segment %d received:\n%s\n", segment, bigfilesegment);
+        printf("Written %d bytes\n\n", strlen(bigfilesegment));
+        
+        sem_post(&wlock);
+        
+        while (segment != num){
+            
+        }
+        
+        writefile = strcat(writefile, bigfilesegment);
+        
+        sem_wait(&wlock);
+        num = num + 1;
+        sem_post(&wlock);
+        
+     }
+
+
+
+
+}
+
+int work_longwrite(int connfd){
+
+    char buf[MAXLINE];
+    rio_readlineb(&rio, buf, MAXLINE);
+    
+    char * charfile = malloc(strlen(buf));
+    strcpy(charfile, buf);
+    charfile[strlen(buf)-1] = '\0';
+    
+    int iterations = atoi(buf);
+    printf("The server recieved:  %d iterations\n", iterations);
+    
+    sprintf(buf, "PROCEED\n");
+	 rio_writen(connfd, buf, strlen(buf));
+	 
+	 rio_readlineb(&rio, buf, MAXLINE);
+	 strcpy(charfile, buf);
+    charfile[strlen(buf)-1] = '\0';
+    
+    int filedesc = atoi(charfile);
+    
+    sprintf(buf, "PROCEED\n");
+	 rio_writen(connfd, buf, strlen(buf));
+	 
+	 socklen_t clientlen = sizeof(struct sockaddr_in);
+	 struct sockaddr_in clientaddr;
+	   
+	 int i;
+	 pthread_t tids[iterations];
+	 int * listenfds = (int*)malloc(iterations*sizeof(int));
+	   
+	 sem_init(&wlock, 0, 1);	
+	 sbuf_init(&sbuf_write, 10);
+	 sbuf_init(&sbuf_wsegment, 10);
+	   
+	 for(i = 0; i < iterations; i++){
+	     listenfds[i] = open_listenfd(port + i + 1001);
+	 }
+	   
+	 for (i = 0; i < iterations; i++){
+	    connfd = accept(listenfds[i], (SA*)&clientaddr, &clientlen);
+	    sbuf_insert(&sbuf_write, connfd);
+	    sbuf_insert(&sbuf_wsegment, i);
+    }
+    
+    writefile = (char*)malloc(iterations*(int)pow(2, 11));
+    sprintf(writefile, "");
+    
+    for (i = 0; i < 10; i++){
+	       
+	     pthread_create(&tids[i], NULL, bigwrite, port + i + 1);
+	 }
+	 
+	 while (num != iterations){
+	 }
+	 
+	 printf("%s\n", writefile);
+	 
+	 int success = write(filedesc, writefile, strlen(writefile));
+	 
+	 
+    int listenfd = open_listenfd(port + 2000);
+    connfd = accept(listenfd, (SA*)&clientaddr, &clientlen);
+    
+    
+    sprintf(buf, "%d\n", success);
+    rio_writen(connfd, buf, strlen(buf));
+    
+    
+    close(connfd);
+	   
 
 }
 
@@ -717,6 +944,12 @@ void * worker(void * vargp){
 			  work_close(connfd);
 			  close(connfd);
 			  break;
+			}
+			else if (!strcmp(buf, "LONG WRITE\n")){
+			  sprintf(buf, "PROCEED\n");
+			  rio_writen(connfd, buf, strlen(buf));
+			  work_longwrite(connfd);
+			
 			}
 			else if (!strcmp(buf, "INIT\n")){
 			  
@@ -831,8 +1064,10 @@ void * queue_monitor(void * vargp){
 }
 
 int main(int argc, char ** argv){
+	
+	printf("boop\n");
 
-	int i, listenfd, connfd, port;
+	int i, listenfd, connfd;
 	socklen_t clientlen = sizeof(struct sockaddr_in);
 	struct sockaddr_in clientaddr;
 	pthread_t tid;
