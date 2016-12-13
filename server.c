@@ -28,6 +28,7 @@
 #include <netdb.h>
 #include <netinet/in.h>
 #include <arpa/inet.h>
+#include "header.h"
 
 #define UNRESTRICTED 0
 #define EXCLUSIVE    1
@@ -54,13 +55,7 @@ typedef struct {
 int itemsVal = 0;
 int slotsVal;
 
-
-typedef struct {
-	int rio_fd;                /* Descriptor for this internal buf */
-	int rio_cnt;               /* Unread bytes in internal buf */
-	char *rio_bufptr;          /* Next unread byte in internal buf */
-	char rio_buf[RIO_BUFSIZE]; /* Internal buffer */
-} rio_t;
+ 
 
 typedef struct fileNode{
    char * filename;
@@ -356,6 +351,7 @@ int open_listenfd(int port){
 	Calledd once per open descriptor. Assiciates the descriptor fd with a read 
 	buffer of type rio_t at address rp.
 */
+
 
 void rio_readinitb(rio_t *rp, int fd)
 {

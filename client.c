@@ -28,6 +28,8 @@
 #include <netdb.h>
 #include <netinet/in.h>
 #include <arpa/inet.h>
+#include "header.h"
+
 
 #define MAXLINE     8192
 #define RIO_BUFSIZE 8192
@@ -36,12 +38,7 @@
  #define EXCLUSIVE    1
  #define TRANSACTION  2
 
-typedef struct {
-	int rio_fd;                /* Descriptor for this internal buf */
-	int rio_cnt;               /* Unread bytes in internal buf */
-	char *rio_bufptr;          /* Next unread byte in internal buf */
-	char rio_buf[RIO_BUFSIZE]; /* Internal buffer */
-} rio_t;
+
 
 typedef struct sockaddr SA;
 
@@ -50,13 +47,13 @@ typedef struct sockaddr SA;
 	Calledd once per open descriptor. Assiciates the descriptor fd with a read 
 	buffer of type rio_t at address rp.
 */
-
 void rio_readinitb(rio_t *rp, int fd)
 {
     rp->rio_fd = fd;
     rp->rio_cnt = 0;
     rp->rio_bufptr = rp->rio_buf;
 }
+
 
 /*
 	Reads up to n bytes from file descriptor rp and places it in the buffer
