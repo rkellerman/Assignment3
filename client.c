@@ -39,14 +39,16 @@
 
  #define PORT 10062
 
-/*
+ /*
+
 typedef struct {
-	int rio_fd;                /* Descriptor for this internal buf *
-	int rio_cnt;               /* Unread bytes in internal buf *
-	char *rio_bufptr;          /* Next unread byte in internal buf *
-	char rio_buf[RIO_BUFSIZE]; /* Internal buffer *
+	int rio_fd;                // Descriptor for this internal buf *
+	int rio_cnt;               // Unread bytes in internal buf *
+	char *rio_bufptr;          // Next unread byte in internal buf *
+	char rio_buf[RIO_BUFSIZE]; // Internal buffer *
 } rio_t;
 */
+
 
 typedef struct sockaddr SA;
 
@@ -137,11 +139,14 @@ int open_clientfd(char *hostname, int port){
 	int clientfd;
 	struct hostent *hp;
 	struct sockaddr_in serveraddr;
+
+
 	if ((clientfd = socket(AF_INET, SOCK_STREAM, 0)) < 0){
 		return -1;
 	}
 	/* Check errno for cause of error */
 	/* Fill in the server’s IP address and port */
+
 	if ((hp = gethostbyname(hostname)) == NULL){
 		return -2; /* Check h_errno for cause of error */
 	}
@@ -516,7 +521,7 @@ int netwrite(int fildes, char * file, size_t size){
 		rio_readlineb(&rio, sub, MAXLINE);
 	    sub[strlen(sub) - 1] = '\0';
 
-	    free(clientfds);
+	    free(wclientfds);
 
 		close(clientfd);
 		return atoi(sub);
@@ -617,23 +622,20 @@ int netclose(int fildes){
 int netserverinit(char * hostname, int filemode){
 
 	errno = 0;
-
+	host = hostname;
 	port = PORT;
 	printf("%d\n", port);
 	
-
+    
 	struct hostent * hp;
 	if ((hp = gethostbyname(hostname)) == NULL){
 		errno = HOST_NOT_FOUND;
-		return -1; /* Check h_errno for cause of error */
+		return -1; // Check h_errno for cause of error *
 	}
-
 	char buf[MAXLINE];
 
-
-	clientfd = open_clientfd(host, port);
+	clientfd = open_clientfd(hostname, port);
 	rio_readinitb(&rio, clientfd);
-
 
 	// write file path and flags to server program
 	// first write OPEN to buf and pass it
@@ -770,11 +772,11 @@ int main(int argc, char ** argv){
 				int i = 0;
 				char * filefile = (char*)malloc(10000);
 
-				while( fgets(filefile, 10000, stdin) ) /* break with ^D or ^Z *
+				while( fgets(filefile, 10000, stdin) ) // break with ^D or ^Z *
 				{
 					text = realloc( text, strlen(text)+1+strlen(filefile) );
-					if( !text ){} /* error handling *
-					strcat( text, filefile ); /* note a '\n' is appended here everytime *
+					if( !text ){} // error handling *
+					strcat( text, filefile ); // note a '\n' is appended here everytime *
 					printf("%s\n", filefile);
 					i++;
 					if (i == 2){
@@ -820,5 +822,5 @@ int main(int argc, char ** argv){
 
 
 }
-
 */
+
