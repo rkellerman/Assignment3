@@ -201,9 +201,14 @@ int netopen(char * pathname, int flags){
 	}
 
 	char buf[MAXLINE];
+	char sub[MAXLINE];
 
 
 	clientfd = open_clientfd(host, port);
+	if (clientfd < 0){
+		errno = ETIMEDOUT;
+		return -1;
+	}
 	rio_readinitb(&rio, clientfd);
 
 
@@ -314,6 +319,10 @@ int netread(int fildes, char * buf, size_t nbyte){
 
 
 	clientfd = open_clientfd(host, port);
+	if (clientfd < 0){
+		errno = ETIMEDOUT;
+		return -1;
+	}
 	rio_readinitb(&rio, clientfd);
 
 	sprintf(sub, "READ\n");
@@ -420,13 +429,18 @@ int netwrite(int fildes, char * file, size_t size){
 	char sub[MAXLINE];
 
 	clientfd = open_clientfd(host, port);
+	if (clientfd < 0){
+		errno = ETIMEDOUT;
+		return -1;
+	}
 	rio_readinitb(&rio, clientfd);
 										// just for testing, BE SURE TO CHANGE
 
+	printf("The size of the file is %d, and the file is:\n%s", strlen(file), file);
 	if (size > (int)pow(2, 11)){
 
 
-
+		printf("%s\n", file);
 		sprintf(sub, "LONG WRITE\n");
 	    rio_writen(clientfd, sub, strlen(sub));
 	    rio_readlineb(&rio, sub, MAXLINE);
@@ -477,7 +491,7 @@ int netwrite(int fildes, char * file, size_t size){
 		int i;
 		for (i = 0; i < iterations; i++){
 			wclientfds[i] = open_clientfd(host, port + i + 1001);
-			//printf("Connection established:  %d\n", wclientfds[i]);
+			printf("Connection established:  %d\n", wclientfds[i]);
 		}
 
 		
@@ -497,7 +511,7 @@ int netwrite(int fildes, char * file, size_t size){
 		    	memcpy(bigfilesegment, &file[startIndex], (int)pow(2,11));
 		    	bigfilesegment[(int)pow(2, 11)] = '\0';
 		    	sprintf(bigfilesegment, "%s\n", bigfilesegment);
-		    	//printf("%s", bigfilesegment);
+		    	printf("%s", bigfilesegment);
 	     	}
 	     	else {
 	 	    	int len = size - (int)pow(2, 11)*(iterations - 1);
@@ -505,10 +519,10 @@ int netwrite(int fildes, char * file, size_t size){
 		     	memcpy(bigfilesegment, &file[startIndex], len);
 		     	bigfilesegment[len] = '\0';
 		     	sprintf(bigfilesegment, "%s\n", bigfilesegment);
-		     	//printf("%s", bigfilesegment);
+		     	printf("%s", bigfilesegment);
 	     	}
 
-	     	//printf("%d\n", (int)strlen(bigfilesegment));
+	     	printf("%d\n", (int)strlen(bigfilesegment));
 	     	rio_writen(wclientfds[i], bigfilesegment, strlen(bigfilesegment));
 	     
 	     	close(wclientfds[i]);
@@ -524,10 +538,15 @@ int netwrite(int fildes, char * file, size_t size){
 		rio_readlineb(&rio, sub, MAXLINE);
 	    sub[strlen(sub) - 1] = '\0';
 
+
+	    int val = atoi(sub);
+
 	    free(wclientfds);
 
+	    
+
 		close(clientfd);
-		return atoi(sub);
+		return val;
 	}
 
 	sprintf(sub, "WRITE\n");
@@ -570,10 +589,14 @@ int netwrite(int fildes, char * file, size_t size){
 
 	rio_readlineb(&rio, sub, MAXLINE);
 	sub[strlen(sub) - 1] = '\0';
+	printf("%s\n", sub);
+
+	int val = atoi(sub);
 
 	close(clientfd);
 
-	return atoi(sub);
+
+	return val;
 
 }
 
@@ -589,6 +612,11 @@ int netclose(int fildes){
 	char sub[MAXLINE];
 
 	clientfd = open_clientfd(host, port);
+	if (clientfd < 0){
+		errno = ETIMEDOUT;
+		return -1;
+	}
+
 	rio_readinitb(&rio, clientfd);
 
 	sprintf(sub, "CLOSE\n");
@@ -618,15 +646,18 @@ int netclose(int fildes){
 	rio_readlineb(&rio, charbyte, MAXLINE);
 	charbyte[strlen(charbyte)-1] = '\0';
 
-	close(clientfd);
+	
 
 	if (atoi(charbyte) < 0){
 		errno = EBADF;
+		close(clientfd);
 		return -1;
 	}
 
 	int val = atoi(charbyte);
 	free(charbyte);
+
+	close(clientfd);
 
 	return val;
 
@@ -648,6 +679,10 @@ int netserverinit(char * hostname, int filemode){
 	char buf[MAXLINE];
 
 	clientfd = open_clientfd(hostname, port);
+	if (clientfd < 0){
+		errno = ETIMEDOUT;
+		return -1;
+	}
 	rio_readinitb(&rio, clientfd);
 
 	// write file path and flags to server program
@@ -683,9 +718,16 @@ int netserverinit(char * hostname, int filemode){
 		return -1;
 	}
 
-	init = 1;
-	printf("Init successful\n");
+	if (errno == 0){
+		init = 1;
+		printf("Init successful\n");
+	}
+	else {
+		printf("Init unsuccessful\n");
+	}
+
 	close(clientfd);
+
 	return 0;
 
 
