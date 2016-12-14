@@ -552,6 +552,7 @@ int work_open(int connfd){ 			// be sure to use semaphores
    //free(pathname);
    free(flags);
    free(charfile);
+  
 
 	return 0;
 }
@@ -676,6 +677,9 @@ void work_read(int connfd){
 	   free(listenfds);
 	   //free(bigfile);
 	   free(charfile);
+	   
+	   
+	   
 	   return;
 	}
    
@@ -690,7 +694,8 @@ void work_read(int connfd){
    rio_writen(connfd, file, strlen(file));
    
    free(charbyte);
-
+   
+   
 }
 
 
@@ -722,10 +727,14 @@ void work_write(int connfd){
    int success = write(filedesc, file, strlen(file));
    
    printf("Success:  %d\n", success);
-   sprintf(buf, "%d/n", success);
+   sprintf(buf, "%d\n", success);
    rio_writen(connfd, buf, strlen(buf));
    
+   sleep(1);
+   
    free(charfile);
+   
+   
 
 }
 
@@ -757,6 +766,7 @@ void work_close(int connfd){
    
    free(charfile);
    free(charbyte);
+   
 
 }
 
@@ -891,6 +901,8 @@ int work_longwrite(int connfd){
 }
 
 int initialize(int connfd){
+	
+	errno = 0;
 
    char buf[MAXLINE];
 
@@ -925,6 +937,8 @@ int initialize(int connfd){
 	rio_writen(connfd, buf, strlen(buf));
 	
 	free(charfile);
+	
+	
 	
 
    return 0;
@@ -1010,10 +1024,13 @@ void * queue_monitor(void * vargp){
 	
 	while (1){
 		
+		
 		// simply printing the contents of the queue
 		sprintf(buf, "");
 		
 		sleep(10);
+		
+		sem_wait(&lock2);
 		connectionNode * ptr = q->front;
       while (ptr != NULL){
           sprintf(buf, "%s%s | %d | %d --> ", buf, ptr->filename, ptr->fileflag, ptr->connfd);
@@ -1094,7 +1111,9 @@ void * queue_monitor(void * vargp){
        	  printf("CONTENTS OF THE OPEN FILENAME LIST:\n");
            printf("%s\n",  buf);
        }
-      
+       
+       
+      sem_post(&lock2);
 		
 		
 	}
