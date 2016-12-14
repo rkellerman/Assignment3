@@ -26,7 +26,7 @@ typedef struct {
 
 
 int port, clientfd, filedesc;
-int init = 0;   
+//int init = 0;   
 char * host;
 rio_t rio;
 int * clientfds;
