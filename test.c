@@ -41,7 +41,7 @@ int main(){
 		if (!strcmp(input, "OPEN")){
 			printf("Enter filepath:  ");
 			scanf("%s", filepath);
-			filedesc = netopen(filepath, 2);
+			filedesc = netopen(filepath, O_RDWR);
 			printf("File descriptor created is %d\n", filedesc);
 		}
 		else if (!strcmp(input, "READ")){
@@ -53,6 +53,7 @@ int main(){
 			int numbytes = netread(filedesc, file, sizeof(file));
 
 			printf("%d bytes read...  The following are the contents of the file....\n%s\n", numbytes, file);
+			free(file);
 		}
 		else if (!strcmp(input, "INIT")){
 			printf("Enter filemode {0}, {1}, or {2}\n");
@@ -90,6 +91,7 @@ int main(){
 				char ch;
 				for (i = 0; (i < filelength - 10) && ((ch = fgetc(ptr_file)) != EOF); i++){
 					filefile[i] = ch;
+					printf("%c", ch);
 				}
 				filefile[i] = '\0';
 
@@ -97,8 +99,12 @@ int main(){
 
 				fclose(ptr_file);
 
+				printf("THe file is :  %s\n", filefile);
+
 				int success = netwrite(filedesc, filefile, strlen(filefile));
 				printf("Number of bytes written is %d\n", success);
+
+
 
 
 			}
@@ -127,6 +133,8 @@ int main(){
 
 				int success = netwrite(filedesc, text, strlen(text));
 				printf("Number of bytes written is %d\n", success);
+				free(text);
+				free(filefile);
 			}
 		}
 		else if (!strcmp(input, "CLOSE")){
