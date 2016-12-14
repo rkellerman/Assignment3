@@ -28,6 +28,7 @@
 #include <netdb.h>
 #include <netinet/in.h>
 #include <arpa/inet.h>
+#include "client.h"
 
 #define MAXLINE     8192
 #define RIO_BUFSIZE 8192
@@ -36,12 +37,16 @@
  #define EXCLUSIVE    1
  #define TRANSACTION  2
 
+ #define PORT 10062
+
+/*
 typedef struct {
-	int rio_fd;                /* Descriptor for this internal buf */
-	int rio_cnt;               /* Unread bytes in internal buf */
-	char *rio_bufptr;          /* Next unread byte in internal buf */
-	char rio_buf[RIO_BUFSIZE]; /* Internal buffer */
+	int rio_fd;                /* Descriptor for this internal buf *
+	int rio_cnt;               /* Unread bytes in internal buf *
+	char *rio_bufptr;          /* Next unread byte in internal buf *
+	char rio_buf[RIO_BUFSIZE]; /* Internal buffer *
 } rio_t;
+*/
 
 typedef struct sockaddr SA;
 
@@ -340,8 +345,8 @@ int netread(int fildes, char * buf, size_t nbyte){
 
 		int i;
 		for (i = 0; i < iterations; i++){
-			clientfds[i] = open_clientfd(host, port + i + 1);
-			printf("Connection established:  %d\n", clientfds[i]);
+			clientfds[i] = open_clientfd(host, port + i + 47);
+			printf("Connection established:  %d\nPORT IS %d\n", clientfds[i], port + i + 47);
 		}
 
 		sleep(1);
@@ -358,6 +363,8 @@ int netread(int fildes, char * buf, size_t nbyte){
 		}
 
 		//printf("%s\n", buf);
+
+		free(clientfds);
 
 		return strlen(buf);
 
@@ -399,7 +406,7 @@ int netwrite(int fildes, char * file, size_t size){
 
 	char sub[MAXLINE];
 
-
+	printf("This is %s\n", file);
 	clientfd = open_clientfd(host, port);
 	rio_readinitb(&rio, clientfd);
 										// just for testing, BE SURE TO CHANGE
@@ -493,7 +500,7 @@ int netwrite(int fildes, char * file, size_t size){
 		     	printf("%s", bigfilesegment);
 	     	}
 
-	     	printf("%d\n", strlen(bigfilesegment));
+	     	printf("%d\n", (int)strlen(bigfilesegment));
 	     	rio_writen(wclientfds[i], bigfilesegment, strlen(bigfilesegment));
 	     
 	     	close(wclientfds[i]);
@@ -508,6 +515,8 @@ int netwrite(int fildes, char * file, size_t size){
 		
 		rio_readlineb(&rio, sub, MAXLINE);
 	    sub[strlen(sub) - 1] = '\0';
+
+	    free(clientfds);
 
 		close(clientfd);
 		return atoi(sub);
@@ -609,6 +618,10 @@ int netserverinit(char * hostname, int filemode){
 
 	errno = 0;
 
+	port = PORT;
+	printf("%d\n", port);
+	
+
 	struct hostent * hp;
 	if ((hp = gethostbyname(hostname)) == NULL){
 		errno = HOST_NOT_FOUND;
@@ -662,6 +675,7 @@ int netserverinit(char * hostname, int filemode){
 
 
 }
+/*
 
 int main(int argc, char ** argv){
 
@@ -754,20 +768,22 @@ int main(int argc, char ** argv){
 
 				char *text = calloc(1,1);
 				int i = 0;
-				file = (char*)malloc(10000);
+				char * filefile = (char*)malloc(10000);
 
-				while( fgets(file, 10000, stdin) ) /* break with ^D or ^Z */
+				while( fgets(filefile, 10000, stdin) ) /* break with ^D or ^Z *
 				{
-					text = realloc( text, strlen(text)+1+strlen(file) );
-					if( !text ){} /* error handling */
-					strcat( text, file ); /* note a '\n' is appended here everytime */
-					printf("%s\n", file);
+					text = realloc( text, strlen(text)+1+strlen(filefile) );
+					if( !text ){} /* error handling *
+					strcat( text, filefile ); /* note a '\n' is appended here everytime *
+					printf("%s\n", filefile);
 					i++;
 					if (i == 2){
 						break;
 					}
 				}
 				printf("\ntext:\n%s",text);
+
+				memcpy(text, &text[1], strlen(text) - 1);
 
 				int success = netwrite(filedesc, text, strlen(text));
 				printf("Number of bytes written is %d\n", success);
@@ -804,3 +820,5 @@ int main(int argc, char ** argv){
 
 
 }
+
+*/
