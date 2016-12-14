@@ -1,15 +1,14 @@
 
 
-
 #define HEADER_GAURD
 #define MAXLINE     8192
 #define RIO_BUFSIZE 8192
 
- #define UNRESTRICTED 0
- #define EXCLUSIVE    1
- #define TRANSACTION  2
+#define UNRESTRICTED 0
+#define EXCLUSIVE    1
+#define TRANSACTION  2
 
- #define PORT 10062
+#define PORT 10062
 
 #ifndef BUTTS
 #define BUTTS
@@ -24,9 +23,12 @@ typedef struct {
 
 #endif
 
+#include <unistd.h>
+#include <pthread.h>
+#include <stdio.h>
 
 int port, clientfd, filedesc;
-//int init = 0;   
+// int init = 0;    	
 char * host;
 rio_t rio;
 int * clientfds;
@@ -46,7 +48,3 @@ int findLength(FILE * fp);
 int netwrite(int fildes, char * file, size_t size);
 int netclose(int fildes);
 int netserverinit(char * hostname, int filemode);
-
-
-
-
