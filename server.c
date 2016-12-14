@@ -1085,10 +1085,7 @@ int main(int argc, char ** argv){
 	struct sockaddr_in clientaddr;
 	pthread_t tid;
 
-	if (argc != 2){
-		fprintf(stderr, "usage:  %s\n", argv[0]);
-		exit(0);
-	}
+	
 
 	port = PORT;
 	sbuf_init(&sbuf, SBUFSIZE);
