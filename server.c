@@ -839,6 +839,8 @@ int work_longwrite(int connfd){
     writefile = (char*)malloc(iterations*(int)pow(2, 11));
     sprintf(writefile, "");
     
+    num = 0;
+    
     for (i = 0; i < 10; i++){
 	       
 	     pthread_create(&tids[i], NULL, bigwrite, port + i + 1);
@@ -854,7 +856,8 @@ int work_longwrite(int connfd){
 	 
     int listenfd = open_listenfd(port + 2000);
     connfd = accept(listenfd, (SA*)&clientaddr, &clientlen);
-    
+    printf("Connection %d\n", connfd);
+    close(listenfd);
     
     sprintf(buf, "%d\n", success);
     rio_writen(connfd, buf, strlen(buf));
