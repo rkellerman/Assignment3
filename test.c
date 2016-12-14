@@ -42,6 +42,7 @@ int main(){
 			printf("Enter filepath:  ");
 			scanf("%s", filepath);
 			filedesc = netopen(filepath, 2);
+			printf("File descriptor created is %d\n", filedesc);
 		}
 		else if (!strcmp(input, "READ")){
 			printf("Enter file descriptor:  ");
