@@ -1,0 +1,6 @@
+1.)  gcc -pthread -o server server.c
+2.)  ./server
+3.)  gcc -c client.c
+4.)  gcc -c test.c
+5.)  gcc -o exe test.o client.c
+6.) ./exe
