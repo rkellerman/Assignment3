@@ -119,11 +119,13 @@ int delete(int fd){
    while (ptr != NULL){
       if (fd == ptr->fd){
          prev->next = ptr->next;
+         free(ptr);
          return 0;
       }
       prev = ptr;
       ptr = ptr->next;
    }
+   
    return -1;
 }
 
@@ -546,6 +548,10 @@ int work_open(int connfd){ 			// be sure to use semaphores
    char * charfile = malloc(3);
    sprintf(charfile, "%d\n", filedesc);
    rio_writen(connfd, charfile, strlen(charfile));
+   
+   //free(pathname);
+   free(flags);
+   free(charfile);
 
 	return 0;
 }
@@ -591,6 +597,7 @@ int bigread(void * vargp){
         rio_writen(connfd, charfile, strlen(charfile));
         
         close(connfd);
+        free(charfile);
         
         sem_post(&lock);
 	     
@@ -613,9 +620,9 @@ void work_read(int connfd){
    int filedesc = atoi(charfile);
    printf("File descriptor received is %d\n", filedesc);
    
-   char file[10000];
+   char file[100000];
 
-   int numbytes = read(filedesc, file, 10000);
+   int numbytes = read(filedesc, file, 100000);
    
    
    
@@ -667,6 +674,8 @@ void work_read(int connfd){
 	   }
 	   
 	   free(listenfds);
+	   //free(bigfile);
+	   free(charfile);
 	   return;
 	}
    
@@ -679,6 +688,8 @@ void work_read(int connfd){
    
    sprintf(file, "%s\n", file);
    rio_writen(connfd, file, strlen(file));
+   
+   free(charbyte);
 
 }
 
@@ -700,8 +711,8 @@ void work_write(int connfd){
    printf("File descriptor received is %d\n", filedesc);
 
    //receive text to be written
-   char file[10000];
-   rio_readlineb(&rio,file, 10000);
+   char file[100000];
+   rio_readlineb(&rio,file, 100000);
    file[strlen(file)-1] = '\0';
    printf("The text you have written is %s\n", file);
    
@@ -713,6 +724,8 @@ void work_write(int connfd){
    printf("Success:  %d\n", success);
    sprintf(buf, "%d/n", success);
    rio_writen(connfd, buf, strlen(buf));
+   
+   free(charfile);
 
 }
 
@@ -741,6 +754,9 @@ void work_close(int connfd){
    sprintf(charbyte, "%d\n", success);
    
    rio_writen(connfd, charbyte, strlen(charbyte));
+   
+   free(charfile);
+   free(charbyte);
 
 }
 
@@ -768,8 +784,8 @@ void * bigwrite(int portport){
         bigfilesegment[strlen(bigfilesegment)-1] = '\0';
         
         
-        printf("Segment %d received:\n%s\n", segment, bigfilesegment);
-        printf("Written %d bytes\n\n", (int)strlen(bigfilesegment));
+        //printf("Segment %d received:\n%s\n", segment, bigfilesegment);
+        //printf("Written %d bytes\n\n", (int)strlen(bigfilesegment));
         
         sem_post(&wlock);
         
@@ -858,12 +874,17 @@ int work_longwrite(int connfd){
     connfd = accept(listenfd, (SA*)&clientaddr, &clientlen);
     printf("Connection %d\n", connfd);
     close(listenfd);
-    
+    printf("WROTE %d BYTES\n", success);
     sprintf(buf, "%d\n", success);
     rio_writen(connfd, buf, strlen(buf));
     
     
     close(connfd);
+    free(charfile);
+    free(listenfds);
+    //free(writefile);
+    
+    
     return 0;
 	   
 
@@ -902,6 +923,8 @@ int initialize(int connfd){
 	
 	sprintf(buf, "PROCEED\n");
 	rio_writen(connfd, buf, strlen(buf));
+	
+	free(charfile);
 	
 
    return 0;
@@ -1024,6 +1047,8 @@ void * queue_monitor(void * vargp){
              sprintf(charfile, "%d\n", filedesc);
              rio_writen(current->connfd, charfile, strlen(charfile));
              close(current->connfd);
+             free(charfile);
+             free(current);
              
           }
           else if (response == -1){
@@ -1031,6 +1056,7 @@ void * queue_monitor(void * vargp){
              sprintf(sub, "TIMEOUT\n");
 			    rio_writen(current->connfd, sub, strlen(sub));
 			    close(current->connfd);
+			    free(current);
           }
           
           current = dequeue();
