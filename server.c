@@ -39,6 +39,8 @@
 #define MAXLINE     8192
 #define RIO_BUFSIZE 8192
 
+#define PORT 10062
+
 
 
 typedef struct {
@@ -55,6 +57,7 @@ int itemsVal = 0;
 int slotsVal;
 sem_t lock;
 sem_t wlock;
+sem_t lock2;
 
 
 typedef struct {
@@ -64,7 +67,7 @@ typedef struct {
 	char rio_buf[RIO_BUFSIZE]; /* Internal buffer */
 } rio_t;
 
-typedef struct {
+typedef struct fileNode{
    char * filename;
    int flag;
    struct fileNode * next;
@@ -82,7 +85,7 @@ typedef struct {
    struct connectionNode * front;
 } queue;
 
-typedef struct {
+typedef struct fdNode{
    int fd;
    char * filename;
    struct fdNode * next;
@@ -100,7 +103,7 @@ int insert(char * filename, int fd){
    ptr->next = fdfront;
    fdfront = ptr;
    
-   
+   return 0;
 }
 
 int delete(int fd){
@@ -459,7 +462,7 @@ sbuf_t sbuf; 									// shared buffer of connected descriptors
 sbuf_t sbuf_read, sbuf_write;
 sbuf_t sbuf_segment, sbuf_wsegment;
 rio_t rio;
-init = 0;
+int init = 0;
 int fileMode = -1; 
 int iterations;           
 int port;
@@ -547,7 +550,7 @@ int work_open(int connfd){ 			// be sure to use semaphores
 	return 0;
 }
 
-int bigread(int portport){
+int bigread(void * vargp){
    
    pthread_detach(pthread_self());
    
@@ -646,20 +649,24 @@ void work_read(int connfd){
 	   sbuf_init(&sbuf_segment, 10);
 	   
 	   for(i = 0; i < iterations; i++){
-	       listenfds[i] = open_listenfd(port + i + 1);
+	       listenfds[i] = open_listenfd(port + i + 47);
+	       printf("PORT IS %d\n", port + i + 47);
 	   }
 	   
 	   for (i = 0; i < iterations; i++){
 	      connfd = accept(listenfds[i], (SA*)&clientaddr, &clientlen);
 	      sbuf_insert(&sbuf_read, connfd);
 	      sbuf_insert(&sbuf_segment, i);
+	      close(listenfds[i]);
 	   }
 	   
 	   
 	   for (i = 0; i < 10; i++){
 	       
-	       pthread_create(&tids[i], NULL, bigread, port + i + 1);
+	       pthread_create(&tids[i], NULL, bigread, NULL);
 	   }
+	   
+	   free(listenfds);
 	   return;
 	}
    
@@ -755,14 +762,14 @@ void * bigwrite(int portport){
         
         rio_readinitb(&rio, connfd);
         
-        printf("Connection accepted:  %d\n");
+        printf("Connection accepted:  %d\n", connfd);
         
         rio_readlineb(&rio, bigfilesegment, (int)pow(2, 11) + 2);
         bigfilesegment[strlen(bigfilesegment)-1] = '\0';
         
         
         printf("Segment %d received:\n%s\n", segment, bigfilesegment);
-        printf("Written %d bytes\n\n", strlen(bigfilesegment));
+        printf("Written %d bytes\n\n", (int)strlen(bigfilesegment));
         
         sem_post(&wlock);
         
@@ -826,6 +833,7 @@ int work_longwrite(int connfd){
 	    connfd = accept(listenfds[i], (SA*)&clientaddr, &clientlen);
 	    sbuf_insert(&sbuf_write, connfd);
 	    sbuf_insert(&sbuf_wsegment, i);
+	    close(listenfds[i]);
     }
     
     writefile = (char*)malloc(iterations*(int)pow(2, 11));
@@ -853,6 +861,7 @@ int work_longwrite(int connfd){
     
     
     close(connfd);
+    return 0;
 	   
 
 }
@@ -892,7 +901,7 @@ int initialize(int connfd){
 	rio_writen(connfd, buf, strlen(buf));
 	
 
-
+   return 0;
 }
 
 void * worker(void * vargp){
@@ -901,7 +910,7 @@ void * worker(void * vargp){
 	size_t n;
 	while (1){
 		int connfd = sbuf_remove(&sbuf);
-		
+		sem_wait(&lock2);
 
 		printf("Worker thread has accepted client connection...\n");
 
@@ -962,6 +971,7 @@ void * worker(void * vargp){
 			}
 		}
 		printf("Closing\n");
+		sem_post(&lock2);
 		
 	}
 }
@@ -1073,12 +1083,13 @@ int main(int argc, char ** argv){
 	pthread_t tid;
 
 	if (argc != 2){
-		fprintf(stderr, "usage:  %s <port>\n", argv[0]);
+		fprintf(stderr, "usage:  %s\n", argv[0]);
 		exit(0);
 	}
 
-	port = atoi(argv[1]);
+	port = PORT;
 	sbuf_init(&sbuf, SBUFSIZE);
+	sem_init(&lock2, 0, 1);
 	listenfd = open_listenfd(port);
 	
 	// Initialize both the file list and the queue
