@@ -5,7 +5,7 @@
  *      Author: RyanMini
  */
 
-
+//A simple coment to test git branching
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -272,12 +272,18 @@ int netopen(char * pathname, int flags){
 			return -1;
 		}
 	}
-	//printf("Client received: %s\n", buf);
+	printf("Received: %s\n", buf);
+
 
 
 	// buf holds desired file descriptor
 
 	close(clientfd);
+
+	if (atoi(buf) < 0){
+		printf("Error\n");
+		return -1;
+	}
 
 	return atoi(buf);
 }
@@ -405,6 +411,14 @@ int netread(int fildes, char * buf, size_t nbyte){
 	close(clientfd);
 	free(charbyte);
 
+	if (numbytes < 1){
+		if (errno == 0){
+			errno = EBADF;
+		}
+		printf("Error\n");
+		return -1;
+	}
+
 	return numbytes;
 }
 
@@ -436,11 +450,11 @@ int netwrite(int fildes, char * file, size_t size){
 	rio_readinitb(&rio, clientfd);
 										// just for testing, BE SURE TO CHANGE
 
-	printf("The size of the file is %d, and the file is:\n%s", strlen(file), file);
+	//printf("The size of the file is %d, and the file is:\n%s", strlen(file), file);
 	if (size > (int)pow(2, 11)){
 
 
-		printf("%s\n", file);
+		//printf("%s\n", file);
 		sprintf(sub, "LONG WRITE\n");
 	    rio_writen(clientfd, sub, strlen(sub));
 	    rio_readlineb(&rio, sub, MAXLINE);
@@ -491,7 +505,7 @@ int netwrite(int fildes, char * file, size_t size){
 		int i;
 		for (i = 0; i < iterations; i++){
 			wclientfds[i] = open_clientfd(host, port + i + 1001);
-			printf("Connection established:  %d\n", wclientfds[i]);
+			//printf("Connection established:  %d\n", wclientfds[i]);
 		}
 
 		
@@ -511,7 +525,7 @@ int netwrite(int fildes, char * file, size_t size){
 		    	memcpy(bigfilesegment, &file[startIndex], (int)pow(2,11));
 		    	bigfilesegment[(int)pow(2, 11)] = '\0';
 		    	sprintf(bigfilesegment, "%s\n", bigfilesegment);
-		    	printf("%s", bigfilesegment);
+		    	//printf("%s", bigfilesegment);
 	     	}
 	     	else {
 	 	    	int len = size - (int)pow(2, 11)*(iterations - 1);
@@ -519,10 +533,10 @@ int netwrite(int fildes, char * file, size_t size){
 		     	memcpy(bigfilesegment, &file[startIndex], len);
 		     	bigfilesegment[len] = '\0';
 		     	sprintf(bigfilesegment, "%s\n", bigfilesegment);
-		     	printf("%s", bigfilesegment);
+		     	//printf("%s", bigfilesegment);
 	     	}
 
-	     	printf("%d\n", (int)strlen(bigfilesegment));
+	     	//printf("%d\n", (int)strlen(bigfilesegment));
 	     	rio_writen(wclientfds[i], bigfilesegment, strlen(bigfilesegment));
 	     
 	     	close(wclientfds[i]);
@@ -542,10 +556,17 @@ int netwrite(int fildes, char * file, size_t size){
 	    int val = atoi(sub);
 
 	    free(wclientfds);
+	    close(clientfd);
 
-	    
+	    if (val < 1){
+	    	if (errno == 0){
+	    		errno = EBADF;
+	    	}
+	    	printf("Error\n");
+	    	return -1;
+	    }
 
-		close(clientfd);
+		
 		return val;
 	}
 
@@ -595,6 +616,14 @@ int netwrite(int fildes, char * file, size_t size){
 
 	close(clientfd);
 
+	if (val < 1){
+	    	if (errno == 0){
+	    		errno = EBADF;
+	    	}
+	    	printf("Error\n");
+	    	return -1;
+	    }
+
 
 	return val;
 
@@ -614,6 +643,7 @@ int netclose(int fildes){
 	clientfd = open_clientfd(host, port);
 	if (clientfd < 0){
 		errno = ETIMEDOUT;
+		printf("Error\n");
 		return -1;
 	}
 
@@ -651,6 +681,7 @@ int netclose(int fildes){
 	if (atoi(charbyte) < 0){
 		errno = EBADF;
 		close(clientfd);
+		printf("Error\n");
 		return -1;
 	}
 
@@ -681,6 +712,7 @@ int netserverinit(char * hostname, int filemode){
 	clientfd = open_clientfd(hostname, port);
 	if (clientfd < 0){
 		errno = ETIMEDOUT;
+		printf("Error\n");
 		return -1;
 	}
 	rio_readinitb(&rio, clientfd);
@@ -724,6 +756,7 @@ int netserverinit(char * hostname, int filemode){
 	}
 	else {
 		printf("Init unsuccessful\n");
+		return -1;
 	}
 
 	close(clientfd);
