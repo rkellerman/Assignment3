@@ -1,26 +1,14 @@
-## Makefile
-CC = gcc
-CFLAGS = -Wall -g
-OBJS = server.o client.o
-CLIENT_HEADERS = client.h
-SERVER_HEADERS = 
 
-all: server client
+all: server client.o test
 
-server: $(OBJS)
-	$(CC) -g -pthread -o server server.o 
+server: server.c
+	gcc -Wall -g -o server server.c
 
-client: $(OBJS)
-	$(CC) -g -o client test.c client.o
+client.o: client.c client.h
+	gcc -Wall -g -c client.c
 
-client.o: client.c $(CLIENT_HEADERS)
-	$(CC) -c -g client.c 
-
-server.o: server.c 
-	$(CC) -c -pthread -g server.c
-
-test: client.o
-	$(CC) -o test test.c client.o -lpthread
+test: client.o client.h test.c
+	gcc -Wall -g -o test test.c client.o
 
 clean:
-	rm client server test *.o
+	rm *.o server test
