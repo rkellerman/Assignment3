@@ -6,6 +6,7 @@
  */
 
 
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
@@ -1064,7 +1065,6 @@ void * queue_monitor(void * vargp){
              rio_writen(current->connfd, charfile, strlen(charfile));
              close(current->connfd);
              free(charfile);
-             free(current);
              
           }
           else if (response == -1){
@@ -1072,7 +1072,6 @@ void * queue_monitor(void * vargp){
              sprintf(sub, "TIMEOUT\n");
 			    rio_writen(current->connfd, sub, strlen(sub));
 			    close(current->connfd);
-			    free(current);
           }
           
           current = dequeue();
