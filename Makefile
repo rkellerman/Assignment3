@@ -2,7 +2,7 @@
 all: server client.o test
 
 server: server.c
-	gcc -Wall -g -o server server.c
+	gcc -Wall -pthread -g -o server server.c
 
 client.o: client.c client.h
 	gcc -Wall -g -c client.c
